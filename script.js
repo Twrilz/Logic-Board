@@ -855,6 +855,7 @@
     }
     nodes.set(id, node);
 
+    node.outPins = outPins;
     el.addEventListener('dblclick', (e) => {
       if (e.target.closest('.pin, button, input, select, .del, .pushbtn, .toggle, .dip-toggle, .osclock-off')) return;
       e.stopPropagation();
@@ -1426,7 +1427,7 @@
         inputs.push(false);
       } else if(source.type === 'JOYSTICK' && source.outValues) {
         inputs.push(!!source.outValues[wire.fromIndex || 0]);
-      } else if(isCustomChip(source.type) && source.outValues) {
+      } else if((isCustomChip(source.type) || isDipSwitchType(source.type)) && source.outValues) {
         inputs.push(!!source.outValues[wire.fromIndex || 0]);
       } else {
         inputs.push(!!source.value);
@@ -1502,7 +1503,7 @@
           if(src && src.type === 'JOYSTICK' && src.outValues){
             const keys = ['up', 'down', 'left', 'right'];
             v = !!src.outValues[keys[w.fromIndex || 0]];
-          } else if(src && src.outValues && isCustomChip(src.type)) {
+          } else if(src && src.outValues && (isCustomChip(src.type) || isDipSwitchType(src.type))) {
             v = !!src.outValues[w.fromIndex || 0];
           } else {
             v = src ? (src.value || false) : false;
@@ -1612,7 +1613,7 @@
           if (src && src.type === 'JOYSTICK' && src.outValues) {
             const keys = ['up', 'down', 'left', 'right'];
             v = !!src.outValues[keys[w.fromIndex || 0]];
-          } else if (src && src.outValues && isCustomChip(src.type)) {
+          } else if (src && src.outValues && (isCustomChip(src.type) || isDipSwitchType(src.type))) {
             v = !!src.outValues[w.fromIndex || 0];
           } else {
             v = src ? (src.value || false) : false;
@@ -1633,10 +1634,11 @@
     wires.forEach(w => {
       const from = nodes.get(w.from), to = nodes.get(w.to);
       if(!from || !to) return;
+      const fromIndex = Number.isInteger(Number(w.fromIndex)) ? Number(w.fromIndex) : 0;
       
       let fromPin = from.outPin;
-      if(!fromPin && from.outPins && typeof w.fromIndex === 'number') {
-        fromPin = from.outPins[w.fromIndex];
+      if(!fromPin && from.outPins) {
+        fromPin = from.outPins[fromIndex];
       }
       if(!fromPin && from.outPins && from.outPins.length > 0) {
         fromPin = from.outPins[0];
@@ -1650,11 +1652,11 @@
       w.elHit.setAttribute('d', d);
       
       let isHot = !!from.value;
-      if(from.type === 'JOYSTICK' && from.outValues && typeof w.fromIndex === 'number') {
+      if(from.type === 'JOYSTICK' && from.outValues) {
         const keys = ['up', 'down', 'left', 'right'];
-        isHot = !!from.outValues[keys[w.fromIndex]];
-      } else if(isCustomChip(from.type) && from.outValues && typeof w.fromIndex === 'number') {
-        isHot = !!from.outValues[w.fromIndex];
+        isHot = !!from.outValues[keys[fromIndex]];
+      } else if((isCustomChip(from.type) || isDipSwitchType(from.type)) && from.outValues) {
+        isHot = !!from.outValues[fromIndex];
       }
       w.elVis.classList.toggle('hot', isHot);
     });
