@@ -356,7 +356,7 @@ svg.wires path.wire-vis{ pointer-events:none; fill:none; z-index:13; }
 }
 .node:hover .del{ opacity:1; }
 
-.wire-vis{ stroke:#f3d770; stroke-width:3; fill:none; stroke-linecap:round; stroke-linejoin:round; opacity:1; filter:drop-shadow(0 0 4px rgba(243,215,112,0.75)); }
+.wire-vis{ stroke:#000000; stroke-width:3; fill:none; stroke-linecap:round; stroke-linejoin:round; opacity:1; }
 .wire-vis.hot{ stroke:var(--signal); stroke-width:3.4; filter:drop-shadow(0 0 8px rgba(240,207,90,1)); }
 .wire-vis.temp{ stroke:var(--copper-bright); stroke-width:2.5; stroke-dasharray:5 4; }
 

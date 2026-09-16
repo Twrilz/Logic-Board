@@ -1370,7 +1370,17 @@
     }
     const values = new Map();
     definition.nodes.forEach(inner => {
-      values.set(inner.id, inner.type === 'INPUT' ? !!inputs[definition.inputs.indexOf(inner.id)] : !!inner.value);
+      if(inner.type === 'INPUT') {
+        values.set(inner.id, !!inputs[definition.inputs.indexOf(inner.id)]);
+      } else if(isDipSwitchType(inner.type)) {
+        const switches = inner.switches || new Array(6).fill(false);
+        for(let i = 0; i < 6; i++) {
+          const inputIdx = definition.inputs.indexOf(`${inner.id}:${i}`);
+          values.set(`${inner.id}:${i}`, inputIdx === -1 ? !!switches[i] : !!inputs[inputIdx]);
+        }
+      } else {
+        values.set(inner.id, !!inner.value);
+      }
     });
     const sourceValue = wire => {
       if(!wire) return false;
@@ -1669,6 +1679,28 @@
   }
   document.getElementById('clearAll').addEventListener('click', ()=>{ clearBoard(); snapshot(); toast('Board cleared'); });
 
+  document.getElementById('reportBug')?.addEventListener('click', ()=>{
+    const desc = prompt('Describe the bug:');
+    if(!desc) return;
+    const report = [
+      `Bug report (${new Date().toISOString()})`,
+      `Description: ${desc}`,
+      `Nodes on board: ${nodes.size}`,
+      `Wires on board: ${wires.length}`,
+      `User agent: ${navigator.userAgent}`
+    ].join('\n');
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(report).then(
+        () => toast('Bug report copied to clipboard'),
+        () => toast('Could not copy report — check console')
+      );
+      console.log(report);
+    } else {
+      console.log(report);
+      toast('Bug report logged to console');
+    }
+  });
+
   function serializeBoard(){
     return {
       version: 1,
@@ -1702,9 +1734,11 @@
   }
 
   function saveAsChip(){
-    const inputs = Array.from(nodes.values()).filter(node => node.type === 'INPUT').sort((a, b) => a.y - b.y || a.x - b.x);
+    const inputNodes = Array.from(nodes.values())
+      .filter(node => node.type === 'INPUT' || isDipSwitchType(node.type))
+      .sort((a, b) => a.y - b.y || a.x - b.x);
     const outputs = Array.from(nodes.values()).filter(node => node.type === 'OUTPUT').sort((a, b) => a.y - b.y || a.x - b.x);
-    if(inputs.length === 0 || outputs.length === 0) {
+    if(inputNodes.length === 0 || outputs.length === 0) {
       toast('Add at least one switch and lamp first');
       return;
     }
@@ -1712,7 +1746,9 @@
     if(!name || !name.trim()) return;
     const definition = serializeBoard();
     definition.name = name.trim();
-    definition.inputs = inputs.map(node => node.id);
+    definition.inputs = inputNodes.flatMap(node =>
+      node.type === 'INPUT' ? [node.id] : Array.from({ length: 6 }, (_, i) => `${node.id}:${i}`)
+    );
     definition.outputs = outputs.map(node => node.id);
     const result = registerChip(definition);
     snapshot();
