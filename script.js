@@ -1786,31 +1786,42 @@
     toast('SR latch loaded');
   });
 
-  document.getElementById('loadOneSwitchFiveOutputs').addEventListener('click', ()=>{
+  document.getElementById('loadOneSwitchSixOutputs').addEventListener('click', ()=>{
     clearBoard();
 
-    const inputs = [
-      createNode('INPUT', 60, 60),
-      createNode('INPUT', 60, 130),
-      createNode('INPUT', 60, 200),
-      createNode('INPUT', 60, 270),
-      createNode('INPUT', 60, 340)
+    const switchNode = createNode('INPUT', 80, 180);
+    const outputs = [
+      createNode('OUTPUT', 420, 30),
+      createNode('OUTPUT', 420, 90),
+      createNode('OUTPUT', 420, 150),
+      createNode('OUTPUT', 420, 210),
+      createNode('OUTPUT', 420, 270),
+      createNode('OUTPUT', 420, 330)
     ];
 
-    const or1 = createNode('OR', 280, 95);
-    const or2 = createNode('OR', 280, 235);
-    const finalOr = createNode('OR', 500, 180);
-    const output = createNode('OUTPUT', 710, 180);
-
-    inputs.slice(0, 2).forEach((sw, idx) => createWire(sw.id, or1.id, idx));
-    inputs.slice(2, 4).forEach((sw, idx) => createWire(sw.id, or2.id, idx));
-    createWire(inputs[4].id, finalOr.id, 1);
-    createWire(or1.id, finalOr.id, 0);
-    createWire(or2.id, finalOr.id, 1);
-    createWire(finalOr.id, output.id, 0);
+    outputs.forEach((lamp) => {
+      createWire(switchNode.id, lamp.id, 0);
+    });
 
     snapshot();
-    toast('5 inputs → 1 output loaded');
+    toast('1 switch → 6 outputs loaded');
+  });
+
+  document.getElementById('newSwitchSixOutputs').addEventListener('click', ()=>{
+    clearBoard();
+    const switchNode = createNode('INPUT', 120, 180);
+    const outputs = [
+      createNode('OUTPUT', 500, 40),
+      createNode('OUTPUT', 500, 90),
+      createNode('OUTPUT', 500, 150),
+      createNode('OUTPUT', 500, 210),
+      createNode('OUTPUT', 500, 270),
+      createNode('OUTPUT', 500, 330)
+    ];
+
+    outputs.forEach((lamp) => createWire(switchNode.id, lamp.id, 0));
+    snapshot();
+    toast('New switch with six outputs created');
   });
 
   snapshot();
