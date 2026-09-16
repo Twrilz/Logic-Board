@@ -335,6 +335,36 @@
     }
   }
 
+  function getNodeGlyph(type){
+    if(isCustomChip(type)) return '<span class="node-chip-symbol">▣</span>';
+    const glyphs = {
+      INPUT: '<span class="node-chip-symbol">◎</span>',
+      BUTTON: '<span class="node-chip-symbol">●</span>',
+      CLOCK: '<span class="node-chip-symbol">◷</span>',
+      OSCLOCK: '<span class="node-chip-symbol">◷</span>',
+      OUTPUT: '<span class="node-chip-symbol">◉</span>',
+      SPEAKER: '<svg viewBox="0 0 24 16" aria-hidden="true"><path d="M2 6 H6 L11 2 V14 L6 10 H2 Z M14 5 Q18 8 14 11 M17 3 Q23 8 17 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      LCD: '<span class="node-chip-symbol">▭</span>',
+      SEVEN: '<span class="node-chip-symbol">8</span>',
+      FOURTEEN: '<span class="node-chip-symbol">M</span>',
+      AND: '<svg viewBox="0 0 24 16"><path d="M2 1 H12 A7 7 0 0 1 12 15 H2 Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+      OR: '<svg viewBox="0 0 24 16"><path d="M2 1 Q9 1 12 8 Q9 15 2 15 Q6 8 2 1 Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+      NOT: '<svg viewBox="0 0 24 16"><path d="M2 1 L2 15 L14 8 Z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16.5" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+      NAND: '<svg viewBox="0 0 24 16"><path d="M2 1 H10 A7 7 0 0 1 10 15 H2 Z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="19" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+      NOR: '<svg viewBox="0 0 24 16"><path d="M2 1 Q8 1 10 8 Q8 15 2 15 Q5 8 2 1 Z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+      XOR: '<svg viewBox="0 0 24 16"><path d="M4 1 Q10 1 13 8 Q10 15 4 15 Q7.5 8 4 1 Z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M1 1 Q4.5 8 1 15" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+      XNOR: '<svg viewBox="0 0 24 16"><path d="M3 1 Q9 1 12 8 Q9 15 3 15 Q6.5 8 3 1 Z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M0.5 1 Q4 8 0.5 15" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="14.5" cy="8" r="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+      MEMORY: '<svg viewBox="0 0 24 16"><rect x="2" y="1" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><text x="11" y="11.5" font-size="8" text-anchor="middle" fill="currentColor" font-family="monospace">M</text></svg>',
+      DELAY: '<span class="node-chip-symbol">⏱</span>',
+      CALCULATOR: '<span class="node-chip-symbol">ƒ</span>',
+      GREATER: '<span class="node-chip-symbol">&gt;</span>',
+      XAND: '<span class="node-chip-symbol">&amp;</span>',
+      JOYSTICK: '<span class="node-chip-symbol">🕹</span>',
+      DIPSWITCH: '<span class="node-chip-symbol">▣</span>'
+    };
+    return glyphs[type] || '<span class="node-chip-symbol">◈</span>';
+  }
+
   function createNode(type, x, y){
     const id = makeId('n');
     const nInputs = INPUT_COUNT[type];
@@ -353,7 +383,7 @@
 
     const head = document.createElement('div');
     head.className = 'node-head';
-    head.innerHTML = `<span>${LABELS[type]}</span>`;
+    head.innerHTML = `<span class="node-chip-mark">${getNodeGlyph(type)}</span><span class="node-chip-label">${LABELS[type]}</span>`;
     el.appendChild(head);
 
     const del = document.createElement('div');

@@ -92,17 +92,18 @@ header{
   color:var(--muted); margin:2px 4px 10px; letter-spacing:0.04em;
 }
 .part{
-  display:flex; align-items:center; gap:9px;
+  display:flex; align-items:center; justify-content:flex-start; gap:8px;
   width:100%; padding:9px 10px; margin-bottom:6px;
   background:var(--panel); border:1px solid var(--panel-edge);
   border-radius:7px; cursor:grab; text-align:left;
   color:var(--silk); font-family:var(--mono); font-size:12.5px;
+  line-height:1.2; white-space:nowrap;
   transition:border-color .15s ease, transform .1s ease;
 }
 .part:hover{ border-color:var(--copper-bright); transform:translateX(2px); }
 .part:active{ cursor:grabbing; }
 .part .glyph{
-  width:22px; height:16px; flex-shrink:0;
+  width:22px; height:16px; flex-shrink:0; margin:0;
   display:flex; align-items:center; justify-content:center;
   color:var(--copper-bright);
 }
@@ -225,9 +226,32 @@ svg.wires path.wire-vis{ pointer-events:none; fill:none; z-index:13; }
   letter-spacing:0.03em; color:var(--copper-bright);
   padding:6px 10px; cursor:grab;
   border-bottom:1px solid rgba(0,0,0,0.06);
-  display:flex; justify-content:space-between; align-items:center;
+  display:flex; align-items:center; justify-content:flex-start; gap:6px;
+  min-width:0;
+}
+.node-head .node-chip-mark{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:14px; height:14px; color:var(--copper-bright); flex-shrink:0;
+}
+.node-head .node-chip-mark svg{
+  width:100%; height:100%; display:block;
+}
+.node-head .node-chip-mark .node-chip-symbol{
+  font-size:11px; line-height:1; display:inline-block;
+}
+.node-head .node-chip-label{
+  display:block; min-width:0; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  line-height:1.2;
+  font-size:10px;
 }
 .node-head .id{ color:var(--muted); font-weight:400; font-size:10px; }
+
+.node.type-DIPSWITCH .node-head .node-chip-label,
+.node.type-CHIP\:Dip\ Switch .node-head .node-chip-label,
+.node.type-CHIP\:Dip\ Switch\ \* .node-head .node-chip-label{
+  font-size:9px;
+}
 .node-body{
   position:relative;
   display:flex; align-items:stretch; justify-content:space-between;
