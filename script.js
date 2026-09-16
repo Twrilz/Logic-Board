@@ -1786,6 +1786,25 @@
     toast('SR latch loaded');
   });
 
+  document.getElementById('loadOneSwitchFiveOutputs').addEventListener('click', ()=>{
+    clearBoard();
+    const switchNode = createNode('INPUT', 80, 180);
+    const outputs = [
+      createNode('OUTPUT', 420, 40),
+      createNode('OUTPUT', 420, 110),
+      createNode('OUTPUT', 420, 180),
+      createNode('OUTPUT', 420, 250),
+      createNode('OUTPUT', 420, 320)
+    ];
+
+    outputs.forEach((lamp) => {
+      createWire(switchNode.id, lamp.id, 0);
+    });
+
+    snapshot();
+    toast('1 switch → 5 outputs loaded');
+  });
+
   snapshot();
 
 })();
