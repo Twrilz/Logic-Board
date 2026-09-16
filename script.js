@@ -1788,21 +1788,29 @@
 
   document.getElementById('loadOneSwitchFiveOutputs').addEventListener('click', ()=>{
     clearBoard();
-    const switchNode = createNode('INPUT', 80, 180);
-    const outputs = [
-      createNode('OUTPUT', 420, 40),
-      createNode('OUTPUT', 420, 110),
-      createNode('OUTPUT', 420, 180),
-      createNode('OUTPUT', 420, 250),
-      createNode('OUTPUT', 420, 320)
+
+    const inputs = [
+      createNode('INPUT', 60, 60),
+      createNode('INPUT', 60, 130),
+      createNode('INPUT', 60, 200),
+      createNode('INPUT', 60, 270),
+      createNode('INPUT', 60, 340)
     ];
 
-    outputs.forEach((lamp) => {
-      createWire(switchNode.id, lamp.id, 0);
-    });
+    const or1 = createNode('OR', 280, 95);
+    const or2 = createNode('OR', 280, 235);
+    const finalOr = createNode('OR', 500, 180);
+    const output = createNode('OUTPUT', 710, 180);
+
+    inputs.slice(0, 2).forEach((sw, idx) => createWire(sw.id, or1.id, idx));
+    inputs.slice(2, 4).forEach((sw, idx) => createWire(sw.id, or2.id, idx));
+    createWire(inputs[4].id, finalOr.id, 1);
+    createWire(or1.id, finalOr.id, 0);
+    createWire(or2.id, finalOr.id, 1);
+    createWire(finalOr.id, output.id, 0);
 
     snapshot();
-    toast('1 switch → 5 outputs loaded');
+    toast('5 inputs → 1 output loaded');
   });
 
   snapshot();
