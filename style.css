@@ -167,17 +167,18 @@ header{
 }
 .canvas-wrap.panning{ cursor:grabbing; user-select:none; }
 .zoom-stage{
-  position:relative; width:2400px; height:1500px;
+  position:relative; width:6000px; height:4000px;
 }
 .canvas-inner{
   position:absolute; top:0; left:0;
-  width:2400px; height:1500px;
+  width:6000px; height:4000px;
   transform-origin:0 0;
 }
 svg.wires{
   position:absolute; inset:0; width:100%; height:100%;
   pointer-events:none;
   overflow: visible;
+  z-index: 12;
 }
 svg.wires path.wire-hit{ 
   pointer-events:stroke; 
@@ -191,7 +192,7 @@ svg.wires path.wire-hit:hover {
   stroke: var(--danger);
   filter: drop-shadow(0 0 6px rgba(224,114,95,0.7));
 }
-svg.wires path.wire-vis{ pointer-events:none; fill:none; }
+svg.wires path.wire-vis{ pointer-events:none; fill:none; z-index:13; }
 
 /* ---------- selection box ---------- */
 .selection-box{
@@ -212,7 +213,7 @@ svg.wires path.wire-vis{ pointer-events:none; fill:none; }
   border-radius:8px;
   box-shadow:0 4px 14px rgba(0,0,0,0.35);
   user-select:none;
-  z-index:2;
+  z-index:5;
 }
 .node.dragging{ z-index:5; box-shadow:0 8px 24px rgba(0,0,0,0.5); cursor:grabbing; }
 .node.selected{
@@ -239,6 +240,10 @@ svg.wires path.wire-vis{ pointer-events:none; fill:none; }
   width:11px; height:11px; border-radius:50%;
   background:#cfcfcc; border:2px solid var(--muted);
   margin:3px 0; cursor:crosshair;
+  pointer-events:all;
+  position:relative;
+  z-index:20;
+  touch-action:none;
   transition:box-shadow .12s ease, border-color .12s ease, background .12s ease;
 }
 .pin.in{ margin-left:-6px; }
@@ -351,9 +356,9 @@ svg.wires path.wire-vis{ pointer-events:none; fill:none; }
 }
 .node:hover .del{ opacity:1; }
 
-.wire-vis{ stroke:var(--muted); stroke-width:2; fill:none; }
-.wire-vis.hot{ stroke:var(--signal); stroke-width:2.4; filter:drop-shadow(0 0 4px rgba(240,207,90,0.7)); }
-.wire-vis.temp{ stroke:var(--copper-bright); stroke-dasharray:5 4; }
+.wire-vis{ stroke:#f3d770; stroke-width:3; fill:none; stroke-linecap:round; stroke-linejoin:round; opacity:1; filter:drop-shadow(0 0 4px rgba(243,215,112,0.75)); }
+.wire-vis.hot{ stroke:var(--signal); stroke-width:3.4; filter:drop-shadow(0 0 8px rgba(240,207,90,1)); }
+.wire-vis.temp{ stroke:var(--copper-bright); stroke-width:2.5; stroke-dasharray:5 4; }
 
 ::-webkit-scrollbar{ width:11px; height:11px; }
 ::-webkit-scrollbar-track{ background:transparent; }
@@ -692,5 +697,3 @@ svg.wires path.wire-vis{ pointer-events:none; fill:none; }
   align-items: center;
   justify-content: center;
 }
-
-

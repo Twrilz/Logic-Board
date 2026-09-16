@@ -835,6 +835,7 @@
     el.appendChild(body);
     canvasInner.appendChild(el);
 
+    node.outPin = outPin;
     node.led = el.querySelector('.led');
     node.lcdDisplay = el.querySelector('.lcd-screen, .seven-seg-screen, .fourteen-seg-screen');
     if(isDipSwitchType(type)) {
@@ -951,18 +952,10 @@
     }
   });
 
-  function onPinPointerDown(node, kind, index, pinEl, e) {
-    e.stopPropagation();
-    pendingWireFrom = { nodeId: node.id, kind, index };
-    pinEl.classList.add('hot');
-    canvasWrap.setPointerCapture(e.pointerId);
-  }
+  function applyWireTarget(clientX, clientY){
+    if (!pendingWireFrom) return false;
 
-  function onPinPointerUp(node, kind, index, pinEl, e) {
-    e.stopPropagation();
-    if (!pendingWireFrom) return;
-    
-    const targetEl = document.elementFromPoint(e.clientX, e.clientY);
+    const targetEl = document.elementFromPoint(clientX, clientY);
     const targetPin = targetEl ? targetEl.closest('.pin') : null;
 
     if (targetPin && targetPin.dataset.nodeId) {
@@ -983,13 +976,27 @@
           fromId = targetNodeId;
           fromIndex = targetIndex;
         }
-        
+
         createWire(fromId, toId, toIndex, fromIndex);
         toast('Wire connected');
         snapshot();
       }
     }
+
     cancelPendingWire();
+    return true;
+  }
+
+  function onPinPointerDown(node, kind, index, pinEl, e) {
+    e.stopPropagation();
+    pendingWireFrom = { nodeId: node.id, kind, index };
+    pinEl.classList.add('hot');
+    if (pinEl.setPointerCapture) pinEl.setPointerCapture(e.pointerId);
+  }
+
+  function onPinPointerUp(node, kind, index, pinEl, e) {
+    e.stopPropagation();
+    applyWireTarget(e.clientX, e.clientY);
   }
 
   function cancelPendingWire(){
@@ -1082,6 +1089,26 @@
     }
   });
 
+  document.addEventListener('pointermove', (e)=>{
+    if (!pendingWireFrom) return;
+    const cr = canvasInner.getBoundingClientRect();
+    mousePos.x = (e.clientX - cr.left) / zoom;
+    mousePos.y = (e.clientY - cr.top) / zoom;
+
+    const node = nodes.get(pendingWireFrom.nodeId);
+    const pinEl = pendingWireFrom.kind === 'out'
+      ? (node && (node.outPin || (node.outPins && node.outPins[pendingWireFrom.index])))
+      : (node && node.inPins[pendingWireFrom.index]);
+
+    if (pinEl) {
+      const pinCoord = pinCenter(pinEl);
+      const a = pendingWireFrom.kind === 'out' ? pinCoord : mousePos;
+      const b = pendingWireFrom.kind === 'out' ? mousePos : pinCoord;
+      previewPath.setAttribute('d', bezierPath(a, b));
+      previewPath.style.display = 'block';
+    }
+  });
+
   canvasWrap.addEventListener('pointermove', (e)=>{
     const cr = canvasInner.getBoundingClientRect();
     mousePos.x = (e.clientX - cr.left) / zoom;
@@ -1123,33 +1150,7 @@
 
   function endPanOrSelect(e){
     if (pendingWireFrom) {
-      const targetEl = document.elementFromPoint(e.clientX, e.clientY);
-      const targetPin = targetEl ? targetEl.closest('.pin') : null;
-      
-      if (targetPin && targetPin.dataset.nodeId) {
-        const targetNodeId = targetPin.dataset.nodeId;
-        const targetKind = targetPin.dataset.kind;
-        const targetIndex = parseInt(targetPin.dataset.index || '0', 10);
-
-        if (pendingWireFrom.kind !== targetKind && pendingWireFrom.nodeId !== targetNodeId) {
-          let fromId, toId, toIndex, fromIndex = 0;
-          if (pendingWireFrom.kind === 'out') {
-            fromId = pendingWireFrom.nodeId;
-            fromIndex = pendingWireFrom.index;
-            toId = targetNodeId;
-            toIndex = targetIndex;
-          } else {
-            toId = pendingWireFrom.nodeId;
-            toIndex = pendingWireFrom.index;
-            fromId = targetNodeId;
-            fromIndex = targetIndex;
-          }
-          createWire(fromId, toId, toIndex, fromIndex);
-          toast('Wire connected');
-          snapshot();
-        }
-      }
-      cancelPendingWire();
+      applyWireTarget(e.clientX, e.clientY);
     }
 
     if (isSelecting) {
@@ -1185,7 +1186,7 @@
   canvasWrap.addEventListener('pointerup', endPanOrSelect);
   canvasWrap.addEventListener('pointercancel', endPanOrSelect);
 
-  const BASE_W = 2400, BASE_H = 1500, ZOOM_MIN = 0.35, ZOOM_MAX = 2.2;
+  const BASE_W = 6000, BASE_H = 4000, ZOOM_MIN = 0.35, ZOOM_MAX = 2.2;
   let zoom = 1;
   const zoomLabel = document.getElementById('zoomLabel');
 
@@ -1252,8 +1253,10 @@
         const n = nodes.get(id);
         const init = initialPositions.get(id);
         if(n && init){
-          n.x = Math.max(0, init.x + dx);
-          n.y = Math.max(0, init.y + dy);
+          const maxX = Math.max(0, BASE_W - n.el.offsetWidth * nodeScale);
+          const maxY = Math.max(0, BASE_H - n.el.offsetHeight * nodeScale);
+          n.x = Math.min(maxX, Math.max(0, init.x + dx));
+          n.y = Math.min(maxY, Math.max(0, init.y + dy));
           n.el.style.left = n.x + 'px';
           n.el.style.top = n.y + 'px';
         }
