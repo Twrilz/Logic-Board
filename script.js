@@ -74,13 +74,13 @@
   const INPUT_COUNT = { 
     INPUT: 0, BUTTON: 0, CLOCK: 0, OSCLOCK: 1, OUTPUT: 1, SPEAKER: 1, LCD: 4, SEVEN: 7, FOURTEEN: 18, 
     NOT: 1, AND: 2, OR: 2, NAND: 2, NOR: 2, XOR: 2, XNOR: 2, MEMORY: 2,
-    DELAY: 1, CALCULATOR: 2, GREATER: 2, XAND: 2, JOYSTICK: 0 
+    DELAY: 1, CALCULATOR: 2, GREATER: 2, XAND: 2, JOYSTICK: 0, DIPSWITCH: 0
   };
 
   const LABELS = { 
     INPUT: 'SW', BUTTON: 'BTN', CLOCK: 'CLK', OSCLOCK: 'OS CLK', OUTPUT: 'LAMP', SPEAKER: 'SPEAKER', LCD: 'LCD', SEVEN: '7-SEG', FOURTEEN: '14 Segment', 
     NOT: 'NOT', AND: 'AND', OR: 'OR', NAND: 'NAND', NOR: 'NOR', XOR: 'XOR', XNOR: 'XNOR', MEMORY: 'MEM',
-    DELAY: 'DELAY', CALCULATOR: 'CALC', GREATER: 'GREATER', XAND: 'XAND', JOYSTICK: 'Joystick' 
+    DELAY: 'DELAY', CALCULATOR: 'CALC', GREATER: 'GREATER', XAND: 'XAND', JOYSTICK: 'Joystick', DIPSWITCH: 'Dip Switch'
   };
 
   const canvasInner = document.getElementById('canvasInner');
@@ -108,6 +108,7 @@
 
   function isCustomChip(type){ return typeof type === 'string' && type.startsWith('CHIP:'); }
   function chipKey(name){ return 'CHIP:' + name; }
+  function isDipSwitchType(type){ return type === 'DIPSWITCH' || type === chipKey('Dip Switch'); }
 
   function registerChip(definition){
     const type = chipKey(definition.name);
@@ -135,7 +136,36 @@
     }
   }
 
+  function clearSavedCustomChip(name){
+    const keys = [localStorage, sessionStorage];
+    keys.forEach(storage => {
+      try {
+        const raw = storage.getItem(CUSTOM_CHIPS_STORAGE_KEY);
+        if(!raw) return;
+        const stored = JSON.parse(raw);
+        const cleaned = Object.fromEntries(
+          Object.entries(stored).filter(([, definition]) => !(definition && definition.name === name))
+        );
+        storage.setItem(CUSTOM_CHIPS_STORAGE_KEY, JSON.stringify(cleaned));
+      } catch(err) {
+        try { storage.removeItem(CUSTOM_CHIPS_STORAGE_KEY); } catch(removeErr) { /* storage unavailable */ }
+      }
+    });
+  }
+
+  function createSwitchAssemblyComponent(){
+    const name = 'Dip Switch';
+    const type = chipKey(name);
+    INPUT_COUNT[type] = 0;
+    LABELS[type] = name;
+    if(customChips.has(type)) customChips.delete(type);
+    persistCustomChips();
+    renderCustomChips();
+    return type;
+  }
+
   function restoreCustomChips(){
+    clearSavedCustomChip('Dip Switch');
     try {
       const storedValue = localStorage.getItem(CUSTOM_CHIPS_STORAGE_KEY) || sessionStorage.getItem(CUSTOM_CHIPS_STORAGE_KEY) || '{}';
       const stored = JSON.parse(storedValue);
@@ -235,6 +265,7 @@
     });
   }
 
+  clearSavedCustomChip('Dip Switch');
   restoreCustomChips();
 
   const previewPath = document.createElementNS('http://www.w3.org/2000/svg','path');
@@ -309,6 +340,9 @@
     const nInputs = INPUT_COUNT[type];
     const el = document.createElement('div');
     el.className = 'node type-' + type;
+    if(isDipSwitchType(type)) {
+      el.classList.add('dip-switch-node');
+    }
     el.style.left = x+'px';
     el.style.top = y+'px';
     el.style.transformOrigin = 'top left';
@@ -335,6 +369,15 @@
     let inPins = [];
     let outPin = null;
     let outPins = [];
+
+    const node = {
+      id, type, x, y, value:false,
+      el, inPins, outPin, outPins, led: null, lcdDisplay: null,
+      nInputs, period:1500, startTime:Date.now(),
+      knobX: 0, knobY: 0, operation: '+', history: [], delayTicks: 1, buffer: [false],
+      osTargetTime: null, osAlarmTriggered: false, osAlarmStopped: false, rotation: 0,
+      switches: isDipSwitchType(type) ? new Array(6).fill(false) : undefined
+    };
 
     if(type === 'INPUT'){
       const toggle = document.createElement('div');
@@ -451,6 +494,59 @@
           outWrap.appendChild(outPinElement);
           outPins.push(outPinElement);
           body.appendChild(outWrap);
+
+    } else if(isDipSwitchType(type)) {
+      const switchStack = document.createElement('div');
+      switchStack.className = 'switch-assembly-stack';
+      switchStack.style.display = 'flex';
+      switchStack.style.flexDirection = 'column';
+      switchStack.style.gap = '4px';
+      switchStack.style.padding = '7px 6px';
+      switchStack.style.width = '60px';
+      switchStack.style.background = 'linear-gradient(180deg,#f0f0ef,#d8d8d6)';
+      switchStack.style.border = '1px solid var(--panel-edge)';
+      switchStack.style.borderRadius = '6px';
+      switchStack.style.boxShadow = 'inset 0 0 0 1px rgba(0,0,0,0.08)';
+
+      const dipState = new Array(6).fill(false);
+      for(let i = 0; i < 6; i++) {
+        const toggle = document.createElement('div');
+        toggle.className = 'dip-toggle';
+        toggle.title = `Switch ${i + 1}`;
+        toggle.style.position = 'relative';
+        toggle.style.width = '32px';
+        toggle.style.height = '12px';
+        toggle.style.borderRadius = '3px';
+        toggle.style.border = '1px solid var(--panel-edge)';
+        toggle.style.background = '#b8b7b3';
+        toggle.style.cursor = 'pointer';
+        toggle.style.boxShadow = 'inset 0 0 0 1px rgba(0,0,0,0.08)';
+        const slider = document.createElement('div');
+        slider.style.position = 'absolute';
+        slider.style.top = '1px';
+        slider.style.left = '1px';
+        slider.style.width = '12px';
+        slider.style.height = '8px';
+        slider.style.borderRadius = '2px';
+        slider.style.background = '#e9d27a';
+        slider.style.transition = 'left .12s ease';
+        toggle.appendChild(slider);
+        switchStack.appendChild(toggle);
+      }
+      body.appendChild(switchStack);
+
+      const outWrap = document.createElement('div');
+      outWrap.className = 'pins out';
+      for(let i = 0; i < 6; i++) {
+        const pin = document.createElement('div');
+        pin.className = 'pin out';
+        pin.dataset.index = String(i);
+        pin.dataset.nodeId = id;
+        pin.dataset.kind = 'out';
+        outWrap.appendChild(pin);
+        outPins.push(pin);
+      }
+      body.appendChild(outWrap);
 
     } else if(isCustomChip(type)) {
       const definition = customChips.get(type);
@@ -739,17 +835,27 @@
     el.appendChild(body);
     canvasInner.appendChild(el);
 
-    const node = {
-      id, type, x, y, value:false,
-      el, inPins, outPin, outPins, led: el.querySelector('.led'), lcdDisplay: el.querySelector('.lcd-screen, .seven-seg-screen, .fourteen-seg-screen'),
-      nInputs, period:1500, startTime:Date.now(),
-      knobX: 0, knobY: 0, operation: '+', history: [], delayTicks: 1, buffer: [false],
-      osTargetTime: null, osAlarmTriggered: false, osAlarmStopped: false, rotation: 0
-    };
+    node.led = el.querySelector('.led');
+    node.lcdDisplay = el.querySelector('.lcd-screen, .seven-seg-screen, .fourteen-seg-screen');
+    if(isDipSwitchType(type)) {
+      const toggles = Array.from(el.querySelectorAll('.dip-toggle'));
+      toggles.forEach((toggle, index) => {
+        const slider = toggle.querySelector('div');
+        toggle.addEventListener('click', (e) => {
+          e.stopPropagation();
+          node.switches[index] = !node.switches[index];
+          slider.style.left = node.switches[index] ? '17px' : '1px';
+          toggle.style.background = node.switches[index] ? '#d2d1ce' : '#b8b7b3';
+          node.outValues = node.switches.map(Boolean);
+          node.value = !!node.switches[0];
+          node.outPins.forEach((p, pIdx) => p.classList.toggle('hot', !!node.outValues[pIdx]));
+        });
+      });
+    }
     nodes.set(id, node);
 
     el.addEventListener('dblclick', (e) => {
-      if (e.target.closest('.pin, button, input, select, .del, .pushbtn, .toggle, .osclock-off')) return;
+      if (e.target.closest('.pin, button, input, select, .del, .pushbtn, .toggle, .dip-toggle, .osclock-off')) return;
       e.stopPropagation();
       duplicateNode(node);
     });
@@ -1362,6 +1468,13 @@
         return;
       }
 
+      if(isDipSwitchType(node.type)) {
+        node.switches = node.switches || new Array(6).fill(false);
+        node.outValues = node.switches.map(Boolean);
+        node.value = !!node.switches[0];
+        return;
+      }
+
       if(isCustomChip(node.type)) {
         updateCustomChip(node);
         return;
@@ -1443,10 +1556,17 @@
       if(node.outPin) node.outPin.classList.toggle('hot', !!node.value);
       if(node.outPins && node.outPins.length > 0) {
         node.outPins.forEach((p, idx) => {
-          const keys = ['up', 'down', 'left', 'right'];
-          const val = isCustomChip(node.type)
-            ? !!(node.outValues && node.outValues[idx])
-            : (node.outValues ? node.outValues[keys[idx]] : false);
+          let val = false;
+          if(isDipSwitchType(node.type)) {
+            val = !!(node.outValues && node.outValues[idx]);
+          } else if(node.type === chipKey('Switch Assembly')) {
+            val = !!(node.outValues && node.outValues[idx]);
+          } else if (isCustomChip(node.type)) {
+            val = !!(node.outValues && node.outValues[idx]);
+          } else {
+            const keys = ['up', 'down', 'left', 'right'];
+            val = node.outValues ? !!node.outValues[keys[idx]] : false;
+          }
           p.classList.toggle('hot', !!val);
         });
       }
@@ -1554,6 +1674,7 @@
         id: n.id, type: n.type, x: n.x, y: n.y,
         rotation: n.rotation || 0,
         value: n.type === 'INPUT' ? !!n.value : undefined,
+        switches: isDipSwitchType(n.type) ? (n.switches || new Array(6).fill(false)) : undefined,
         period: n.type === 'CLOCK' ? n.period : undefined,
         delayTicks: n.type === 'DELAY' ? n.delayTicks : undefined,
         osTargetTime: n.type === 'OSCLOCK' ? n.osTargetTime : undefined,
@@ -1612,6 +1733,15 @@
         n.value = true;
         const toggle = n.el.querySelector('.toggle');
         if(toggle) toggle.classList.add('on');
+      }
+      if(isDipSwitchType(saved.type) && Array.isArray(saved.switches)) {
+        n.switches = saved.switches.slice(0, 6).concat(new Array(Math.max(0, 6 - saved.switches.length)).fill(false));
+        const toggles = n.el.querySelectorAll('.dip-toggle');
+        toggles.forEach((toggle, idx) => {
+          const slider = toggle.querySelector('div');
+          if(slider) slider.style.left = n.switches[idx] ? '17px' : '1px';
+          toggle.style.background = n.switches[idx] ? '#d2d1ce' : '#b8b7b3';
+        });
       }
       if(saved.type === 'CLOCK' && saved.period){
         n.period = saved.period;
@@ -1784,44 +1914,6 @@
     createWire(n2.id, qn.id, 0);
     snapshot();
     toast('SR latch loaded');
-  });
-
-  document.getElementById('loadOneSwitchSixOutputs').addEventListener('click', ()=>{
-    clearBoard();
-
-    const switchNode = createNode('INPUT', 80, 180);
-    const outputs = [
-      createNode('OUTPUT', 420, 30),
-      createNode('OUTPUT', 420, 90),
-      createNode('OUTPUT', 420, 150),
-      createNode('OUTPUT', 420, 210),
-      createNode('OUTPUT', 420, 270),
-      createNode('OUTPUT', 420, 330)
-    ];
-
-    outputs.forEach((lamp) => {
-      createWire(switchNode.id, lamp.id, 0);
-    });
-
-    snapshot();
-    toast('1 switch → 6 outputs loaded');
-  });
-
-  document.getElementById('newSwitchSixOutputs').addEventListener('click', ()=>{
-    clearBoard();
-    const switchNode = createNode('INPUT', 120, 180);
-    const outputs = [
-      createNode('OUTPUT', 500, 40),
-      createNode('OUTPUT', 500, 90),
-      createNode('OUTPUT', 500, 150),
-      createNode('OUTPUT', 500, 210),
-      createNode('OUTPUT', 500, 270),
-      createNode('OUTPUT', 500, 330)
-    ];
-
-    outputs.forEach((lamp) => createWire(switchNode.id, lamp.id, 0));
-    snapshot();
-    toast('New switch with six outputs created');
   });
 
   snapshot();

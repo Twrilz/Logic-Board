@@ -262,6 +262,40 @@ svg.wires path.wire-vis{ pointer-events:none; fill:none; }
 .toggle.on{ border-color:var(--signal); }
 .toggle.on .knob{ left:20px; background:var(--signal); box-shadow:0 0 6px rgba(240,207,90,0.7); }
 
+.dip-switch-node{
+  width:100px;
+  
+}
+.dip-switch-node .node-body{
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  padding:2px 18px 0px 0px;
+  box-sizing:border-box;
+}
+.dip-switch-node .switch-assembly-stack{
+  margin: 8px;;
+}
+.dip-switch-node .pins.out{
+  position:absolute;
+  top:50%;
+  right:1px;
+  transform:translateY(-50%);
+  display:flex;
+  flex-direction:column;
+  justify-content:space-around;
+  align-items:center;
+  width:12px;
+  min-width:12px;
+  padding:0;
+}
+.dip-switch-node .pin.out{
+  margin:3px 0;
+  margin-right:0;
+  margin-left:0;
+}
+
 .led{
   margin:0 auto; width:16px; height:16px; border-radius:50%;
   background:radial-gradient(circle at 35% 30%, #efefec, #c9c9c5);
@@ -658,3 +692,5 @@ svg.wires path.wire-vis{ pointer-events:none; fill:none; }
   align-items: center;
   justify-content: center;
 }
+
+
