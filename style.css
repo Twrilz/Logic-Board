@@ -85,8 +85,20 @@ header{
   width:168px; flex-shrink:0;
   background:rgba(216,216,213,0.85);
   border-right:1px solid var(--panel-edge);
-  padding:14px 10px; overflow-y:auto;
+  padding:10px; overflow-y:auto;
+  display: flex; flex-direction: column;
 }
+.search-wrap{
+  position: relative; top: -10px; z-index: 10;
+  padding: 5px 0 10px; margin-bottom: 5px;
+  outline: dotted 1px rgba(0,0,0,0.05); outline-offset: -3px;
+}
+#paletteSearch{
+  width: 100%; padding: 7px 10px; border-radius: 6px;
+  border: 1px solid var(--panel-edge); background: #fff;
+  font: 12px var(--sans); outline: none;
+}
+#paletteSearch:focus{ border-color: var(--copper-bright); }
 .palette h2{
   font-family:var(--mono); font-size:10.5px; font-weight:500;
   color:var(--muted); margin:2px 4px 10px; letter-spacing:0.04em;
@@ -446,6 +458,13 @@ svg.wires path.wire-vis{ pointer-events:none; fill:none; z-index:13; }
 .node.type-CLOCK .clock-select{ font-size:9px; padding:2px 3px; }
 .node.type-LCD{ width:150px; }
 .node.type-LCD .node-body{ min-height:60px; padding:9px 0; }
+.node.node-is-label{ width: 160px; min-height: auto; }
+.node-label-area{
+  width: 100%; min-height: 60px; padding: 10px;
+  background: transparent; border: none; outline: none;
+  font: 12px/1.4 var(--mono); color: var(--silk);
+  resize: vertical; overflow: hidden;
+}
 .node.type-CALCULATOR{ width:150px; }
 .calc-config{
   display:flex; flex-direction:column; align-items:center; gap:6px;

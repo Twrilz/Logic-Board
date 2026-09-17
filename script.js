@@ -71,16 +71,16 @@
 
 /* ============================= circuit simulator ============================= */
 (function(){
-  const INPUT_COUNT = { 
+    const INPUT_COUNT = { 
     INPUT: 0, POWER: 0, GROUND: 0, BUTTON: 0, CLOCK: 0, OSCLOCK: 1, OUTPUT: 1, SPEAKER: 1, LCD: 4, SEVEN: 7, FOURTEEN: 18, 
     NOT: 1, AND: 2, OR: 2, OR3: 3, OR3IN: 3, OR2OUT: 2, NAND: 2, NOR: 2, XOR: 2, XNOR: 2, MEMORY: 2,
-    DELAY: 1, CALCULATOR: 2, GREATER: 2, XAND: 2, JOYSTICK: 0, DIPSWITCH: 0
+    DELAY: 1, CALCULATOR: 2, GREATER: 2, XAND: 2, JOYSTICK: 0, DIPSWITCH: 0, LABEL: 0
   };
 
   const LABELS = { 
     INPUT: 'SW', POWER: 'PWR', GROUND: 'GND', BUTTON: 'BTN', CLOCK: 'CLK', OSCLOCK: 'OS CLK', OUTPUT: 'LAMP', SPEAKER: 'SPEAKER', LCD: 'LCD', SEVEN: '7-SEG', FOURTEEN: '14 Segment', 
     NOT: 'NOT', AND: 'AND', OR: 'OR', OR3: 'OR 3 IN', OR3IN: 'OR 3 IN', OR2OUT: 'OR 2 OUT', NAND: 'NAND', NOR: 'NOR', XOR: 'XOR', XNOR: 'XNOR', MEMORY: 'MEM',
-    DELAY: 'DELAY', CALCULATOR: 'CALC', GREATER: 'GREATER', XAND: 'XAND', JOYSTICK: 'Joystick', DIPSWITCH: 'Dip Switch'
+    DELAY: 'DELAY', CALCULATOR: 'CALC', GREATER: 'GREATER', XAND: 'XAND', JOYSTICK: 'Joystick', DIPSWITCH: 'Dip Switch', LABEL: 'Note'
   };
 
   const canvasInner = document.getElementById('canvasInner');
@@ -531,7 +531,7 @@
     }
   }
 
-  function getNodeGlyph(type){
+    function getNodeGlyph(type){
     if(isCustomChip(type)) return '<span class="node-chip-symbol">▣</span>';
     const glyphs = {
       INPUT: '<span class="node-chip-symbol">◎</span>',
@@ -561,7 +561,8 @@
       GREATER: '<span class="node-chip-symbol">&gt;</span>',
       XAND: '<span class="node-chip-symbol">&amp;</span>',
       JOYSTICK: '<span class="node-chip-symbol">🕹</span>',
-      DIPSWITCH: '<span class="node-chip-symbol">▣</span>'
+      DIPSWITCH: '<span class="node-chip-symbol">▣</span>',
+      LABEL: '<span class="node-chip-symbol">✎</span>'
     };
     return glyphs[type] || '<span class="node-chip-symbol">◈</span>';
   }
@@ -601,17 +602,32 @@
     let outPin = null;
     let outPins = [];
 
-    const node = {
+        const node = {
       id, type, x, y, value:false,
       el, inPins, outPin, outPins, led: null, lcdDisplay: null,
       nInputs, period:1500, startTime:Date.now(),
       knobX: 0, knobY: 0, operation: '+', calcInputs: [0, 0], history: [], delayTicks: 1, buffer: [false],
       osTargetTime: null, osAlarmTriggered: false, osAlarmStopped: false, rotation: 0,
       sourceValue: type === 'POWER',
-      switches: isDipSwitchType(type) ? new Array(6).fill(false) : undefined
+      switches: isDipSwitchType(type) ? new Array(6).fill(false) : undefined,
+      labelText: type === 'LABEL' ? ' ' : undefined
     };
 
-    if(type === 'INPUT'){
+    if(type === 'LABEL'){
+      const area = document.createElement('textarea');
+      area.className = 'node-label-area';
+      area.value = node.labelText;
+      area.placeholder = 'Type something...';
+      area.spellcheck = false;
+      area.addEventListener('input', (e) => {
+        node.labelText = e.target.value;
+      });
+      area.addEventListener('change', () => snapshot());
+      // Prevent dragging the node when interacting with the textarea
+      area.addEventListener('pointerdown', e => e.stopPropagation());
+      body.appendChild(area);
+      el.classList.add('node-is-label');
+    } else if(type === 'INPUT'){
       const toggle = document.createElement('div');
       toggle.className = 'toggle';
       toggle.innerHTML = '<div class="knob"></div>';
@@ -1276,7 +1292,7 @@
     return node;
   }
 
-  function duplicateNode(source){
+    function duplicateNode(source){
     const duplicate = createNode(source.type, source.x + 40, source.y + 40);
     duplicate.value = source.value;
     duplicate.period = source.period;
@@ -1289,6 +1305,7 @@
     duplicate.osAlarmTriggered = source.osAlarmTriggered;
     duplicate.osAlarmStopped = source.osAlarmStopped;
     duplicate.speakerSettings = source.speakerSettings ? { ...source.speakerSettings } : { ...DEFAULT_SPEAKER_SETTINGS };
+    duplicate.labelText = source.labelText;
 
     const inputToggle = duplicate.el.querySelector('.toggle');
     if(inputToggle) inputToggle.classList.toggle('on', duplicate.value);
@@ -1302,6 +1319,8 @@
     if(volumeInput) volumeInput.value = String(getSpeakerSettings(duplicate).volume);
     const waveformSelect = duplicate.el.querySelector('.speaker-waveform');
     if(waveformSelect) waveformSelect.value = getSpeakerSettings(duplicate).waveform;
+    const labelArea = duplicate.el.querySelector('.node-label-area');
+    if(labelArea) labelArea.value = duplicate.labelText || '';
     const alarmInput = duplicate.el.querySelector('.osclock-input');
     if(alarmInput && duplicate.osTargetTime) {
       const date = new Date(duplicate.osTargetTime);
@@ -2276,10 +2295,11 @@
         delayTicks: n.type === 'DELAY' ? n.delayTicks : undefined,
         speakerSettings: n.type === 'SPEAKER' ? getSpeakerSettings(n) : undefined,
         osTargetTime: n.type === 'OSCLOCK' ? n.osTargetTime : undefined,
-        osAlarmTriggered: n.type === 'OSCLOCK' ? n.osAlarmTriggered : undefined,
+                osAlarmTriggered: n.type === 'OSCLOCK' ? n.osAlarmTriggered : undefined,
         osAlarmStopped: n.type === 'OSCLOCK' ? n.osAlarmStopped : undefined,
         operation: n.type === 'CALCULATOR' ? n.operation : undefined,
-        calcInputs: n.type === 'CALCULATOR' ? n.calcInputs : undefined
+        calcInputs: n.type === 'CALCULATOR' ? n.calcInputs : undefined,
+        labelText: n.type === 'LABEL' ? n.labelText : undefined
       })),
       wires: wires.map(w=>({ from: w.from, to: w.to, toIndex: w.toIndex, fromIndex: w.fromIndex }))
     };
@@ -2380,7 +2400,7 @@
         }
         n.value = n.osAlarmTriggered;
       }
-      if(saved.type === 'CALCULATOR'){
+            if(saved.type === 'CALCULATOR'){
         n.operation = saved.operation || '+';
         n.calcInputs = Array.isArray(saved.calcInputs) ? [Number(saved.calcInputs[0]) || 0, Number(saved.calcInputs[1]) || 0] : [0, 0];
         const opEl = n.el.querySelector('.calc-op-btn');
@@ -2389,6 +2409,11 @@
           n.calcInputEls[0].value = n.calcInputs[0];
           n.calcInputEls[1].value = n.calcInputs[1];
         }
+      }
+      if(saved.type === 'LABEL'){
+        n.labelText = saved.labelText || '';
+        const area = n.el.querySelector('.node-label-area');
+        if(area) area.value = n.labelText;
       }
     });
     data.wires.forEach(w=>{
@@ -2454,10 +2479,11 @@
           delayTicks: n.type === 'DELAY' ? n.delayTicks : undefined,
           speakerSettings: n.type === 'SPEAKER' ? { ...getSpeakerSettings(n) } : undefined,
           osTargetTime: n.type === 'OSCLOCK' ? n.osTargetTime : undefined,
-          osAlarmTriggered: n.type === 'OSCLOCK' ? n.osAlarmTriggered : undefined,
+                    osAlarmTriggered: n.type === 'OSCLOCK' ? n.osAlarmTriggered : undefined,
           osAlarmStopped: n.type === 'OSCLOCK' ? n.osAlarmStopped : undefined,
           operation: n.type === 'CALCULATOR' ? n.operation : undefined,
-          calcInputs: n.type === 'CALCULATOR' ? n.calcInputs : undefined };
+          calcInputs: n.type === 'CALCULATOR' ? n.calcInputs : undefined,
+          labelText: n.type === 'LABEL' ? n.labelText : undefined };
       }),
       wires: wires.filter(w=>selectedNodeIds.has(w.from) && selectedNodeIds.has(w.to))
                   .map(w=>({ from:w.from, to:w.to, toIndex:w.toIndex, fromIndex:w.fromIndex }))
@@ -2721,6 +2747,44 @@
     }
   });
 
-  snapshot();
+    snapshot();
+
+  /* ---------- palette search ---------- */
+  const paletteSearch = document.getElementById('paletteSearch');
+  if(paletteSearch){
+    paletteSearch.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      const parts = document.querySelectorAll('.palette .part');
+      const headers = document.querySelectorAll('.palette h2');
+      const seps = document.querySelectorAll('.palette .palette-sep');
+
+      parts.forEach(p => {
+        const text = p.textContent.toLowerCase();
+        const type = p.dataset.type?.toLowerCase() || '';
+        const visible = text.includes(q) || type.includes(q);
+        p.style.display = visible ? 'flex' : 'none';
+      });
+
+      // Hide headers/separators if no children visible
+      headers.forEach(h => {
+        let next = h.nextElementSibling;
+        let anyVisible = false;
+        while(next && next.tagName !== 'H2'){
+          if(next.classList.contains('part') && next.style.display !== 'none') anyVisible = true;
+          if(next.classList.contains('custom-chip-row')){
+             const btn = next.querySelector('.part');
+             if(btn && btn.style.display !== 'none') anyVisible = true;
+          }
+          next = next.nextElementSibling;
+        }
+        h.style.display = anyVisible ? 'block' : 'none';
+      });
+      
+      seps.forEach(s => {
+        const prevH = s.previousElementSibling;
+        if(prevH && prevH.tagName === 'H2') s.style.display = prevH.style.display;
+      });
+    });
+  }
 
 })();

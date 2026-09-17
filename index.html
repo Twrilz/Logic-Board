@@ -8,8 +8,7 @@
 <link rel="icon" href="Icon.ico" type="image/x-icon" />
 </head>
 <body>
-
-<canvas id="bg-canvas"></canvas>
+  <canvas id="bg-canvas"></canvas>
 
 <div class="app">
   <header>
@@ -38,7 +37,10 @@
   </header>
 
   <div class="body">
-    <aside class="palette">
+        <aside class="palette">
+      <div class="search-wrap">
+        <input type="text" id="paletteSearch" placeholder="Search components..." />
+      </div>
       <h2>INPUTS</h2>
       <button class="part" data-type="INPUT"><span class="glyph">◎</span>Switch</button>
       <button class="part" data-type="POWER"><span class="glyph">⎈</span>Power</button>
@@ -47,6 +49,9 @@
       <button class="part" data-type="BUTTON"><span class="glyph">●</span>Button</button>
       <button class="part" data-type="OSCLOCK"><span class="glyph">◷</span>OS Clock</button>
       <button class="part" data-type="CLOCK"><span class="glyph">◷</span>Clock</button>
+      <div class="palette-sep"></div>
+      <h2>ANNOTATION</h2>
+      <button class="part" data-type="LABEL"><span class="glyph">✎</span>Note</button>
       <div class="palette-sep"></div>
       <h2>OUTPUTS</h2>
       <button class="part" data-type="OUTPUT"><span class="glyph">◉</span>Lamp</button>
