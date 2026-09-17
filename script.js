@@ -102,6 +102,7 @@
   let isSelecting = false;
   let selectStart = { x: 0, y: 0 };
   let nodeScale = 1;
+  let hoveredChipNode = null;
   const customChips = new Map();
   const customChipsEl = document.getElementById('customChips');
   const CUSTOM_CHIPS_STORAGE_KEY = 'breadboard-custom-chips';
@@ -250,6 +251,135 @@
     overlay.addEventListener('click', e => {
       if(e.target === overlay) close();
     });
+  }
+
+  /* ---------- view-inside-chip viewer (with zoom/pan) ---------- */
+  function openChipViewer(node){
+    const definition = customChips.get(node.type);
+    if(!definition) return;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'chip-viewer-overlay';
+    overlay.innerHTML = `
+      <div class="chip-viewer-panel">
+        <div class="chip-viewer-header">
+          <span>Inside: ${definition.name}</span>
+          <button type="button" class="chip-viewer-close">×</button>
+        </div>
+        <svg class="chip-viewer-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const svg = overlay.querySelector('svg');
+    const innerNodes = definition.nodes || [];
+
+    let baseBox;
+    if(innerNodes.length === 0){
+      baseBox = { x:0, y:0, w:400, h:100 };
+    } else {
+      const xs = innerNodes.map(n => n.x), ys = innerNodes.map(n => n.y);
+      const minX = Math.min(...xs) - 40, minY = Math.min(...ys) - 40;
+      const maxX = Math.max(...xs) + 160, maxY = Math.max(...ys) + 120;
+      baseBox = { x:minX, y:minY, w:maxX-minX, h:maxY-minY };
+    }
+
+    let view = { x:baseBox.x, y:baseBox.y, w:baseBox.w, h:baseBox.h };
+    const ZOOM_MIN = 0.2, ZOOM_MAX = 6;
+    let zoomLevel = 1;
+
+    function applyViewBox(){
+      svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`);
+    }
+
+    if(innerNodes.length === 0){
+      const empty = document.createElementNS('http://www.w3.org/2000/svg','text');
+      empty.setAttribute('x', 20); empty.setAttribute('y', 30);
+      empty.setAttribute('class','chip-viewer-label');
+      empty.textContent = 'No internal components recorded for this chip.';
+      svg.appendChild(empty);
+    } else {
+      const byId = new Map(innerNodes.map(n => [n.id, n]));
+      (definition.wires || []).forEach(w => {
+        const from = byId.get(w.from), to = byId.get(w.to);
+        if(!from || !to) return;
+        const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+        path.setAttribute('class','chip-viewer-wire');
+        path.setAttribute('d', `M ${from.x+120} ${from.y+30} C ${from.x+180} ${from.y+30}, ${to.x-60} ${to.y+30}, ${to.x} ${to.y+30}`);
+        svg.appendChild(path);
+      });
+
+      innerNodes.forEach(inner => {
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        g.setAttribute('class', isCustomChip(inner.type) ? 'chip-viewer-nested' : '');
+        const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+        rect.setAttribute('x', inner.x); rect.setAttribute('y', inner.y);
+        rect.setAttribute('width', 120); rect.setAttribute('height', 60);
+        rect.setAttribute('rx', 6);
+        rect.setAttribute('class','chip-viewer-node');
+        g.appendChild(rect);
+        const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+        label.setAttribute('x', inner.x+60); label.setAttribute('y', inner.y+35);
+        label.setAttribute('text-anchor','middle');
+        label.setAttribute('class','chip-viewer-label');
+        label.textContent = LABELS[inner.type] || inner.type;
+        g.appendChild(label);
+        if(isCustomChip(inner.type)){
+          g.style.cursor = 'pointer';
+          g.addEventListener('click', (e) => { e.stopPropagation(); openChipViewer(inner); });
+        }
+        svg.appendChild(g);
+      });
+    }
+
+    applyViewBox();
+
+    svg.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const px = (e.clientX - rect.left) / rect.width;
+      const py = (e.clientY - rect.top) / rect.height;
+
+      const factor = Math.exp(-e.deltaY * 0.0015);
+      const nextZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomLevel * factor));
+      zoomLevel = nextZoom;
+
+      const cursorX = view.x + px * view.w;
+      const cursorY = view.y + py * view.h;
+      view.w = baseBox.w / zoomLevel;
+      view.h = baseBox.h / zoomLevel;
+      view.x = cursorX - px * view.w;
+      view.y = cursorY - py * view.h;
+
+      applyViewBox();
+    }, { passive:false });
+
+    let panState = null;
+    svg.addEventListener('pointerdown', (e) => {
+      if(e.target.closest('g')) return;
+      panState = { x:e.clientX, y:e.clientY, vx:view.x, vy:view.y };
+      svg.setPointerCapture(e.pointerId);
+      svg.style.cursor = 'grabbing';
+    });
+    svg.addEventListener('pointermove', (e) => {
+      if(!panState) return;
+      const rect = svg.getBoundingClientRect();
+      const dx = (e.clientX - panState.x) * (view.w / rect.width);
+      const dy = (e.clientY - panState.y) * (view.h / rect.height);
+      view.x = panState.vx - dx;
+      view.y = panState.vy - dy;
+      applyViewBox();
+    });
+    const endPan = () => { panState = null; svg.style.cursor = 'grab'; };
+    svg.addEventListener('pointerup', endPan);
+    svg.addEventListener('pointercancel', endPan);
+    svg.style.cursor = 'grab';
+
+    const close = () => { overlay.remove(); document.removeEventListener('keydown', escHandler); };
+    const escHandler = (e) => { if(e.key === 'Escape') close(); };
+    overlay.querySelector('.chip-viewer-close').addEventListener('click', close);
+    overlay.addEventListener('click', e => { if(e.target === overlay) close(); });
+    document.addEventListener('keydown', escHandler);
   }
 
   function setupPartButton(btn){
@@ -886,6 +1016,12 @@
     nodes.set(id, node);
 
     node.outPins = outPins;
+
+    if(isCustomChip(type)){
+      el.addEventListener('pointerenter', () => { hoveredChipNode = node; });
+      el.addEventListener('pointerleave', () => { if(hoveredChipNode === node) hoveredChipNode = null; });
+    }
+
     el.addEventListener('dblclick', (e) => {
       if (e.target.closest('.pin, button, input, select, .del, .pushbtn, .toggle, .dip-toggle, .osclock-off')) return;
       e.stopPropagation();
@@ -1056,6 +1192,7 @@
     node.el.remove();
     nodes.delete(id);
     selectedNodeIds.delete(id);
+    if(hoveredChipNode === node) hoveredChipNode = null;
   }
 
   function removeWire(wireId){
@@ -1329,6 +1466,11 @@
         const node = nodes.get(id);
         if(node) rotateNode(node);
       });
+      return;
+    }
+    if(!mod && e.key.toLowerCase() === 'k' && hoveredChipNode){
+      e.preventDefault();
+      openChipViewer(hoveredChipNode);
       return;
     }
     if(!mod) return;
@@ -1707,6 +1849,7 @@
     nodes.clear();
     selectedNodeIds.clear();
     pendingWireFrom = null;
+    hoveredChipNode = null;
     spawnCount = 0;
   }
   document.getElementById('clearAll').addEventListener('click', ()=>{ clearBoard(); snapshot(); toast('Board cleared'); });

@@ -721,3 +721,40 @@ svg.wires path.wire-vis{ pointer-events:none; fill:none; z-index:13; }
   align-items: center;
   justify-content: center;
 }
+
+
+
+
+/* ---------- chip viewer (view inside custom chip) ---------- */
+.chip-viewer-overlay{
+  position:fixed; inset:0; z-index:50;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(20,20,19,0.55); backdrop-filter:blur(3px);
+}
+.chip-viewer-panel{
+  width:min(900px, calc(100vw - 48px)); height:min(640px, calc(100vh - 48px));
+  display:flex; flex-direction:column;
+  background:linear-gradient(180deg,#f7f7f6,#e6e6e3);
+  border:1px solid var(--panel-edge); border-radius:8px;
+  box-shadow:0 12px 32px rgba(0,0,0,0.38);
+}
+.chip-viewer-header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 14px; font-family:var(--mono); font-size:12.5px;
+  font-weight:600; color:var(--copper-bright);
+  border-bottom:1px solid var(--panel-edge);
+}
+.chip-viewer-close{
+  width:22px; height:22px; border-radius:50%;
+  background:transparent; border:1px solid var(--panel-edge);
+  color:var(--silk); font-size:14px; line-height:1; cursor:pointer;
+}
+.chip-viewer-close:hover{ border-color:var(--danger); color:var(--danger); }
+.chip-viewer-svg{ flex:1; width:100%; background:var(--board-2); }
+.chip-viewer-node{ fill:var(--panel); stroke:var(--panel-edge); stroke-width:1.5; }
+.chip-viewer-nested .chip-viewer-node{ stroke:var(--copper-bright); }
+.chip-viewer-label{
+  fill:var(--silk); font-family:var(--mono); font-size:11px;
+  pointer-events:none;
+}
+.chip-viewer-wire{ fill:none; stroke:var(--copper); stroke-width:1.5; opacity:0.8; }
