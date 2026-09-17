@@ -124,7 +124,13 @@ header{
 .confirm-overlay{
   position:fixed; inset:0; z-index:50;
   display:flex; align-items:center; justify-content:center;
-  background:rgba(20,20,19,0.42); backdrop-filter:blur(3px);
+}
+.confirm-overlay::before{
+  content:"";
+  position:absolute; inset:0; z-index:-1;
+  background:rgba(20,20,19,0.42);
+  backdrop-filter:blur(3px);
+  -webkit-backdrop-filter:blur(3px);
 }
 .confirm-dialog{
   width:min(310px, calc(100vw - 32px)); padding:18px;
@@ -145,6 +151,46 @@ header{
 .confirm-actions button:hover{ border-color:var(--copper-bright); }
 .confirm-actions .confirm-delete{ color:#fff; background:var(--danger); border-color:var(--danger); }
 .confirm-actions .confirm-delete:hover{ background:#c75e50; }
+.bugreport-dialog{
+  width:min(480px, calc(100vw - 32px)); max-height:min(600px, calc(100vh - 48px));
+  padding:18px; display:flex; flex-direction:column; gap:10px;
+  background:linear-gradient(180deg,#f7f7f6,#e6e6e3);
+  border:1px solid var(--panel-edge); border-radius:8px;
+  box-shadow:0 12px 32px rgba(0,0,0,0.38); color:var(--silk);
+}
+.bugreport-dialog h3{ margin:6px 0 0; font:600 15px var(--mono); }
+.bugreport-dialog label{
+  display:flex; flex-direction:column; gap:5px;
+  font:600 11px var(--mono); color:var(--silk-dim); letter-spacing:.02em;
+}
+.bugreport-dialog textarea{
+  resize:vertical; min-height:70px; max-height:160px;
+  padding:8px 9px; border:1px solid var(--panel-edge); border-radius:6px;
+  background:#fff; color:var(--silk); font:12.5px var(--sans); line-height:1.4;
+}
+.bugreport-dialog textarea:focus{ outline:none; border-color:var(--copper-bright); }
+.bugreport-checkline{
+  display:flex; align-items:center; gap:7px;
+  font:12px var(--sans); color:var(--silk-dim);
+}
+.bugreport-checkline input{ accent-color:var(--copper); }
+.bugreport-diagnostics{
+  padding:8px 9px; border:1px solid var(--panel-edge); border-radius:6px;
+  background:rgba(255,255,255,0.5); color:var(--muted);
+  font:10.5px var(--mono); line-height:1.6; max-height:110px; overflow-y:auto;
+  white-space:pre-wrap; word-break:break-word;
+}
+.bugreport-actions{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:7px; margin-top:2px; }
+.bugreport-actions button{
+  padding:6px 11px; border:1px solid var(--panel-edge); border-radius:5px;
+  font:11px var(--mono); cursor:pointer; color:var(--silk); background:transparent;
+}
+.bugreport-actions button:hover{ border-color:var(--copper-bright); }
+.bugreport-actions .bugreport-submit{ color:#2f2f2d; background:var(--copper-bright); border-color:var(--copper-bright); font-weight:600; }
+.bugreport-actions .bugreport-submit:hover{ background:var(--copper); }
+.bugreport-actions .bugreport-submit:disabled{ opacity:0.5; cursor:not-allowed; }
+.bugreport-actions .bugreport-github{ color:#fff; background:#24292f; border-color:#24292f; font-weight:600; }
+.bugreport-actions .bugreport-github:hover{ background:#32383f; }
 .save-chip-part{
   margin-top:4px; border-style:dashed; color:var(--muted);
   background:rgba(216,216,213,0.5);
@@ -400,6 +446,39 @@ svg.wires path.wire-vis{ pointer-events:none; fill:none; z-index:13; }
 .node.type-CLOCK .clock-select{ font-size:9px; padding:2px 3px; }
 .node.type-LCD{ width:150px; }
 .node.type-LCD .node-body{ min-height:60px; padding:9px 0; }
+.node.type-CALCULATOR{ width:150px; }
+.calc-config{
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  padding:2px 8px 6px; width:100%; box-sizing:border-box;
+}
+.calc-operands{ display:flex; align-items:center; justify-content:center; gap:5px; }
+.calc-operand{
+  width:40px; font-family:var(--mono); font-size:11px;
+  background:var(--panel); color:var(--silk);
+  border:1px solid var(--panel-edge); border-radius:4px;
+  padding:3px 4px; text-align:center; outline:none;
+  -moz-appearance:textfield;
+}
+.calc-operand::-webkit-outer-spin-button,
+.calc-operand::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+.calc-operand:hover, .calc-operand:focus{ border-color:var(--copper-bright); }
+.calc-operand:disabled{ opacity:0.4; cursor:not-allowed; }
+.calc-op-btn{
+  font-family:var(--mono); font-size:12px; font-weight:700;
+  color:var(--silk); background:var(--panel); border:1px solid var(--panel-edge);
+  border-radius:4px; padding:3px 8px; cursor:pointer; user-select:none; min-width:22px;
+  text-align:center;
+}
+.calc-op-btn:hover{ border-color:var(--copper-bright); color:var(--copper-bright); }
+.calc-readout{
+  width:100%; min-height:24px; box-sizing:border-box;
+  background:#c7cfbe; border:1px solid #98a08d; border-radius:3px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono); font-size:13px; font-weight:600; letter-spacing:0.4px;
+  color:#38402d; box-shadow:inset 0 1px 3px rgba(0,0,0,0.28);
+  padding:2px 4px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+}
+.calc-hint{ font-size:8.5px; color:var(--muted); text-align:center; font-family:var(--mono); line-height:1.3; }
 .node .del{
   position:absolute; top:-7px; right:-7px; width:16px; height:16px;
   border-radius:50%; background:#f7e9e6; border:1px solid var(--danger);
@@ -421,7 +500,7 @@ svg.wires path.wire-vis{ pointer-events:none; fill:none; z-index:13; }
   background:var(--panel); border:1px solid var(--panel-edge); color:var(--silk);
   font-family:var(--mono); font-size:12px; padding:9px 16px; border-radius:7px;
   opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease;
-  z-index:20;
+  z-index:60;
 }
 .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
 

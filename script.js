@@ -605,7 +605,7 @@
       id, type, x, y, value:false,
       el, inPins, outPin, outPins, led: null, lcdDisplay: null,
       nInputs, period:1500, startTime:Date.now(),
-      knobX: 0, knobY: 0, operation: '+', history: [], delayTicks: 1, buffer: [false],
+      knobX: 0, knobY: 0, operation: '+', calcInputs: [0, 0], history: [], delayTicks: 1, buffer: [false],
       osTargetTime: null, osAlarmTriggered: false, osAlarmStopped: false, rotation: 0,
       sourceValue: type === 'POWER',
       switches: isDipSwitchType(type) ? new Array(6).fill(false) : undefined
@@ -1149,21 +1149,72 @@
       body.appendChild(outWrap);
 
       if(type === 'CALCULATOR') {
+        node.operation = node.operation || '+';
+        node.calcInputs = node.calcInputs || [0, 0];
+
+        const configWrap = document.createElement('div');
+        configWrap.className = 'calc-config';
+
+        const operandsRow = document.createElement('div');
+        operandsRow.className = 'calc-operands';
+
+        const inputA = document.createElement('input');
+        inputA.type = 'number';
+        inputA.className = 'calc-operand';
+        inputA.value = node.calcInputs[0];
+        inputA.step = 'any';
+        inputA.title = 'Used when input A has no wire connected';
+        inputA.addEventListener('mousedown', e => e.stopPropagation());
+        inputA.addEventListener('click', e => e.stopPropagation());
+        inputA.addEventListener('input', (e) => {
+          node.calcInputs[0] = Number(e.target.value) || 0;
+          snapshot();
+        });
+
         const opBtn = document.createElement('div');
-        opBtn.style.textAlign = 'center';
-        opBtn.style.cursor = 'pointer';
-        opBtn.style.fontSize = '12px';
-        opBtn.style.padding = '2px';
-        opBtn.textContent = 'Op: +';
+        opBtn.className = 'calc-op-btn';
+        opBtn.textContent = node.operation;
+        opBtn.title = 'Click to cycle operation';
         opBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           const ops = ['+', '-', '*', '/', '^'];
           const idx = (ops.indexOf(node.operation || '+') + 1) % ops.length;
           node.operation = ops[idx];
-          opBtn.textContent = 'Op: ' + node.operation;
+          opBtn.textContent = node.operation;
+          snapshot();
         });
-        body.appendChild(opBtn);
-        node.operation = '+';
+
+        const inputB = document.createElement('input');
+        inputB.type = 'number';
+        inputB.className = 'calc-operand';
+        inputB.value = node.calcInputs[1];
+        inputB.step = 'any';
+        inputB.title = 'Used when input B has no wire connected';
+        inputB.addEventListener('mousedown', e => e.stopPropagation());
+        inputB.addEventListener('click', e => e.stopPropagation());
+        inputB.addEventListener('input', (e) => {
+          node.calcInputs[1] = Number(e.target.value) || 0;
+          snapshot();
+        });
+
+        operandsRow.appendChild(inputA);
+        operandsRow.appendChild(opBtn);
+        operandsRow.appendChild(inputB);
+        configWrap.appendChild(operandsRow);
+
+        const readout = document.createElement('div');
+        readout.className = 'calc-readout';
+        readout.textContent = '0';
+        configWrap.appendChild(readout);
+
+        const hint = document.createElement('div');
+        hint.className = 'calc-hint';
+        hint.textContent = 'wire overrides typed value';
+        configWrap.appendChild(hint);
+
+        body.appendChild(configWrap);
+        node.calcInputEls = [inputA, inputB];
+        node.calcReadout = readout;
       }
     }
 
@@ -1232,6 +1283,7 @@
     duplicate.delayTicks = source.delayTicks;
     duplicate.buffer = source.buffer ? [...source.buffer] : [false];
     duplicate.operation = source.operation;
+    duplicate.calcInputs = source.calcInputs ? [...source.calcInputs] : [0, 0];
     duplicate.rotation = source.rotation || 0;
     duplicate.osTargetTime = source.osTargetTime;
     duplicate.osAlarmTriggered = source.osAlarmTriggered;
@@ -1255,6 +1307,12 @@
       const date = new Date(duplicate.osTargetTime);
       const pad = value => String(value).padStart(2, '0');
       alarmInput.value = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+    if(duplicate.type === 'CALCULATOR' && duplicate.calcInputEls){
+      const opEl = duplicate.el.querySelector('.calc-op-btn');
+      if(opEl) opEl.textContent = duplicate.operation;
+      duplicate.calcInputEls[0].value = duplicate.calcInputs[0];
+      duplicate.calcInputEls[1].value = duplicate.calcInputs[1];
     }
     duplicate.el.style.transform = `scale(${nodeScale}) rotate(${duplicate.rotation}deg)`;
     snapshot();
@@ -1862,7 +1920,7 @@
       const vals = [];
       for(let i=0;i<node.nInputs;i++){
         const w = getInputWire(node.id, i);
-        let v = false;
+        let v = (node.type === 'CALCULATOR' && node.calcInputs) ? (node.calcInputs[i] || 0) : false;
         if(w){
           const src = nodes.get(w.from);
           if(src && src.type === 'JOYSTICK' && src.outValues){
@@ -1913,10 +1971,11 @@
           const v1 = Number(vals[1]) || 0;
           const op = node.operation || '+';
           if(op === '+') out = v0 + v1;
-          else if(op === '-') out = Math.max(0, v0 - v1);
+          else if(op === '-') out = v0 - v1;
           else if(op === '*') out = v0 * v1;
           else if(op === '/') out = v1 !== 0 ? v0 / v1 : 0;
           else if(op === '^') out = Math.pow(v0, v1);
+          if(typeof out === 'number' && isFinite(out)) out = Math.round(out * 1e6) / 1e6;
           break;
         }
         case 'GREATER':
@@ -1959,6 +2018,18 @@
         });
       }
       if(node.led) node.led.classList.toggle('on', !!node.value);
+      if(node.type === 'CALCULATOR' && node.calcReadout){
+        node.calcReadout.textContent = Number.isFinite(node.value) ? String(node.value) : '0';
+        if(node.calcInputEls){
+          node.calcInputEls.forEach((inputEl, i) => {
+            const wired = !!getInputWire(node.id, i);
+            inputEl.disabled = wired;
+            if(!wired && document.activeElement !== inputEl){
+              inputEl.value = node.calcInputs[i];
+            }
+          });
+        }
+      }
       if(node.lcdDisplay && node.type !== 'OSCLOCK') {
         
         if(node.type === 'SEVEN' && Array.isArray(node.value)) {
@@ -2056,27 +2127,141 @@
   }
   document.getElementById('clearAll').addEventListener('click', ()=>{ clearBoard(); snapshot(); toast('Board cleared'); });
 
-  document.getElementById('reportBug')?.addEventListener('click', ()=>{
-    const desc = prompt('Describe the bug:');
-    if(!desc) return;
-    const report = [
-      `Bug report (${new Date().toISOString()})`,
-      `Description: ${desc}`,
+  document.getElementById('reportBug')?.addEventListener('click', openBugReportDialog);
+
+  function openBugReportDialog(){
+    const diagnostics = [
+      `Time: ${new Date().toISOString()}`,
       `Nodes on board: ${nodes.size}`,
       `Wires on board: ${wires.length}`,
+      `Viewport: ${window.innerWidth}×${window.innerHeight}`,
       `User agent: ${navigator.userAgent}`
     ].join('\n');
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(report).then(
-        () => toast('Bug report copied to clipboard'),
-        () => toast('Could not copy report — check console')
-      );
-      console.log(report);
-    } else {
-      console.log(report);
-      toast('Bug report logged to console');
+
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="bugreport-dialog" role="dialog" aria-modal="true" aria-labelledby="bugreportTitle">
+        <div class="confirm-kicker">REPORT BUG</div>
+        <h3 id="bugreportTitle">What went wrong?</h3>
+        <label>Description
+          <textarea id="bugreportDesc" placeholder="What did you expect to happen, and what happened instead? Steps to reproduce help a lot."></textarea>
+        </label>
+        <label class="bugreport-checkline" style="flex-direction:row;">
+          <input type="checkbox" id="bugreportIncludeBoard" checked />
+          Include current board layout (helps reproduce it)
+        </label>
+        <div class="bugreport-diagnostics" id="bugreportDiagnostics"></div>
+        <div class="bugreport-actions">
+          <button type="button" class="bugreport-cancel">Cancel</button>
+          <button type="button" class="bugreport-download">Download .txt</button>
+          <button type="button" class="bugreport-submit">Copy report</button>
+          <button type="button" class="bugreport-github">Open on GitHub</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const GITHUB_ISSUE_URL = 'https://github.com/Twrilz/Logic-Sandbox/issues/new';
+
+    const descEl = overlay.querySelector('#bugreportDesc');
+    const includeBoardEl = overlay.querySelector('#bugreportIncludeBoard');
+    const diagEl = overlay.querySelector('#bugreportDiagnostics');
+    const submitBtn = overlay.querySelector('.bugreport-submit');
+    diagEl.textContent = diagnostics;
+    descEl.focus();
+
+    function buildReport(){
+      const desc = descEl.value.trim();
+      const parts = [
+        `Bug report`,
+        `Description: ${desc || '(none provided)'}`,
+        diagnostics
+      ];
+      if(includeBoardEl.checked){
+        try {
+          parts.push(`Board JSON:\n${JSON.stringify(serializeBoard())}`);
+        } catch(e) {
+          parts.push(`Board JSON: (failed to serialize — ${e.message})`);
+        }
+      }
+      return parts.join('\n\n');
     }
-  });
+
+    const close = () => overlay.remove();
+    overlay.querySelector('.bugreport-cancel').addEventListener('click', close);
+    overlay.addEventListener('click', e => { if(e.target === overlay) close(); });
+    overlay.addEventListener('keydown', e => { if(e.key === 'Escape') close(); });
+
+    overlay.querySelector('.bugreport-download').addEventListener('click', () => {
+      const report = buildReport();
+      const blob = new Blob([report], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `logic-sandbox-bug-report-${Date.now()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('Bug report downloaded');
+    });
+
+    submitBtn.addEventListener('click', () => {
+      const report = buildReport();
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        submitBtn.disabled = true;
+        navigator.clipboard.writeText(report).then(
+          () => { toast('Bug report copied to clipboard'); close(); },
+          () => { console.log(report); toast('Could not copy — logged to console instead'); submitBtn.disabled = false; }
+        );
+      } else {
+        console.log(report);
+        toast('Bug report logged to console');
+        close();
+      }
+    });
+
+    overlay.querySelector('.bugreport-github').addEventListener('click', () => {
+      const desc = descEl.value.trim();
+      if(!desc){
+        toast('Add a description before opening on GitHub');
+        descEl.focus();
+        return;
+      }
+      const title = desc.split('\n')[0].slice(0, 80);
+
+      function buildGithubBody(includeBoard){
+        const lines = [
+          desc,
+          '',
+          '**Diagnostics**',
+          '```',
+          diagnostics,
+          '```'
+        ];
+        if(includeBoard){
+          try {
+            lines.push('', '**Board JSON**', '```json', JSON.stringify(serializeBoard()), '```');
+          } catch(e) {
+            lines.push('', `_Board JSON failed to serialize: ${e.message}_`);
+          }
+        }
+        return lines.join('\n');
+      }
+
+      let body = buildGithubBody(includeBoardEl.checked);
+      let url = `${GITHUB_ISSUE_URL}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+
+      // Browsers and GitHub start truncating very long URLs — drop the board JSON and
+      // point the person at the downloaded report instead if it doesn't fit.
+      if(url.length > 8000 && includeBoardEl.checked){
+        body = buildGithubBody(false);
+        url = `${GITHUB_ISSUE_URL}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+        toast('Board layout too large to include — download it separately and attach it');
+      }
+
+      window.open(url, '_blank', 'noopener');
+    });
+  }
 
   function serializeBoard(){
     return {
@@ -2092,7 +2277,9 @@
         speakerSettings: n.type === 'SPEAKER' ? getSpeakerSettings(n) : undefined,
         osTargetTime: n.type === 'OSCLOCK' ? n.osTargetTime : undefined,
         osAlarmTriggered: n.type === 'OSCLOCK' ? n.osAlarmTriggered : undefined,
-        osAlarmStopped: n.type === 'OSCLOCK' ? n.osAlarmStopped : undefined
+        osAlarmStopped: n.type === 'OSCLOCK' ? n.osAlarmStopped : undefined,
+        operation: n.type === 'CALCULATOR' ? n.operation : undefined,
+        calcInputs: n.type === 'CALCULATOR' ? n.calcInputs : undefined
       })),
       wires: wires.map(w=>({ from: w.from, to: w.to, toIndex: w.toIndex, fromIndex: w.fromIndex }))
     };
@@ -2193,6 +2380,16 @@
         }
         n.value = n.osAlarmTriggered;
       }
+      if(saved.type === 'CALCULATOR'){
+        n.operation = saved.operation || '+';
+        n.calcInputs = Array.isArray(saved.calcInputs) ? [Number(saved.calcInputs[0]) || 0, Number(saved.calcInputs[1]) || 0] : [0, 0];
+        const opEl = n.el.querySelector('.calc-op-btn');
+        if(opEl) opEl.textContent = n.operation;
+        if(n.calcInputEls){
+          n.calcInputEls[0].value = n.calcInputs[0];
+          n.calcInputEls[1].value = n.calcInputs[1];
+        }
+      }
     });
     data.wires.forEach(w=>{
       const fromId = idMap.get(w.from);
@@ -2258,7 +2455,9 @@
           speakerSettings: n.type === 'SPEAKER' ? { ...getSpeakerSettings(n) } : undefined,
           osTargetTime: n.type === 'OSCLOCK' ? n.osTargetTime : undefined,
           osAlarmTriggered: n.type === 'OSCLOCK' ? n.osAlarmTriggered : undefined,
-          osAlarmStopped: n.type === 'OSCLOCK' ? n.osAlarmStopped : undefined };
+          osAlarmStopped: n.type === 'OSCLOCK' ? n.osAlarmStopped : undefined,
+          operation: n.type === 'CALCULATOR' ? n.operation : undefined,
+          calcInputs: n.type === 'CALCULATOR' ? n.calcInputs : undefined };
       }),
       wires: wires.filter(w=>selectedNodeIds.has(w.from) && selectedNodeIds.has(w.to))
                   .map(w=>({ from:w.from, to:w.to, toIndex:w.toIndex, fromIndex:w.fromIndex }))
