@@ -156,6 +156,34 @@ header{
 }
 .hint b{ color:var(--hint-text); font-weight:600; }
 
+.speaker-config{
+  display:flex; flex-direction:column; gap:6px;
+  width:72px; padding:4px 5px 2px; border-left:1px solid rgba(48,48,46,0.25);
+}
+.speaker-config label{
+  display:flex; flex-direction:column; gap:4px;
+  color:var(--silk-dim); font:600 9px var(--mono);
+}
+.speaker-config .speaker-setting-header{
+  display:flex; align-items:center; justify-content:space-between; gap:6px;
+  width:100%;
+}
+.speaker-config .speaker-setting-header span,
+.speaker-config label > span{
+  width:18px; text-align:left; opacity:0.8;
+}
+.speaker-config .speaker-frequency-readout,
+.speaker-config .speaker-volume-readout{
+  color:var(--silk); font-size:9px; font-weight:700; text-align:right;
+}
+.speaker-config input[type="range"],
+.speaker-config select{
+  width:100%; accent-color:var(--copper-bright);
+}
+.speaker-config select{
+  font:500 9px var(--mono); background:#f2f2f0; border:1px solid var(--panel-edge); border-radius:4px; padding:2px 3px;
+}
+
 /* ---------- canvas area ---------- */
 .canvas-wrap{
   flex:1; position:relative; overflow:auto;

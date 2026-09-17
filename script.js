@@ -72,14 +72,14 @@
 /* ============================= circuit simulator ============================= */
 (function(){
   const INPUT_COUNT = { 
-    INPUT: 0, BUTTON: 0, CLOCK: 0, OSCLOCK: 1, OUTPUT: 1, SPEAKER: 1, LCD: 4, SEVEN: 7, FOURTEEN: 18, 
-    NOT: 1, AND: 2, OR: 2, NAND: 2, NOR: 2, XOR: 2, XNOR: 2, MEMORY: 2,
+    INPUT: 0, POWER: 0, GROUND: 0, BUTTON: 0, CLOCK: 0, OSCLOCK: 1, OUTPUT: 1, SPEAKER: 1, LCD: 4, SEVEN: 7, FOURTEEN: 18, 
+    NOT: 1, AND: 2, OR: 2, OR3: 3, OR3IN: 3, OR2OUT: 2, NAND: 2, NOR: 2, XOR: 2, XNOR: 2, MEMORY: 2,
     DELAY: 1, CALCULATOR: 2, GREATER: 2, XAND: 2, JOYSTICK: 0, DIPSWITCH: 0
   };
 
   const LABELS = { 
-    INPUT: 'SW', BUTTON: 'BTN', CLOCK: 'CLK', OSCLOCK: 'OS CLK', OUTPUT: 'LAMP', SPEAKER: 'SPEAKER', LCD: 'LCD', SEVEN: '7-SEG', FOURTEEN: '14 Segment', 
-    NOT: 'NOT', AND: 'AND', OR: 'OR', NAND: 'NAND', NOR: 'NOR', XOR: 'XOR', XNOR: 'XNOR', MEMORY: 'MEM',
+    INPUT: 'SW', POWER: 'PWR', GROUND: 'GND', BUTTON: 'BTN', CLOCK: 'CLK', OSCLOCK: 'OS CLK', OUTPUT: 'LAMP', SPEAKER: 'SPEAKER', LCD: 'LCD', SEVEN: '7-SEG', FOURTEEN: '14 Segment', 
+    NOT: 'NOT', AND: 'AND', OR: 'OR', OR3: 'OR 3 IN', OR3IN: 'OR 3 IN', OR2OUT: 'OR 2 OUT', NAND: 'NAND', NOR: 'NOR', XOR: 'XOR', XNOR: 'XNOR', MEMORY: 'MEM',
     DELAY: 'DELAY', CALCULATOR: 'CALC', GREATER: 'GREATER', XAND: 'XAND', JOYSTICK: 'Joystick', DIPSWITCH: 'Dip Switch'
   };
 
@@ -440,28 +440,94 @@
   }
 
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const DEFAULT_SPEAKER_SETTINGS = { frequency: 880, volume: 18, waveform: 'square' };
+
   document.addEventListener('pointerdown', () => {
     if (audioCtx.state === 'suspended') audioCtx.resume();
   }, { once: true });
 
+  function clampSpeakerFrequency(value){
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return DEFAULT_SPEAKER_SETTINGS.frequency;
+    return Math.min(4000, Math.max(80, parsed));
+  }
+
+  function clampSpeakerVolume(value){
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return DEFAULT_SPEAKER_SETTINGS.volume;
+    return Math.min(35, Math.max(0, parsed));
+  }
+
+  function getSpeakerSettings(node){
+    if (!node.speakerSettings) {
+      node.speakerSettings = { ...DEFAULT_SPEAKER_SETTINGS };
+    }
+    node.speakerSettings.frequency = clampSpeakerFrequency(node.speakerSettings.frequency);
+    node.speakerSettings.volume = clampSpeakerVolume(node.speakerSettings.volume);
+    if (!['sine', 'triangle', 'square', 'sawtooth'].includes(node.speakerSettings.waveform || '')) {
+      node.speakerSettings.waveform = DEFAULT_SPEAKER_SETTINGS.waveform;
+    }
+    return node.speakerSettings;
+  }
+
+  function updateSpeakerReadouts(node){
+    const settings = getSpeakerSettings(node);
+    const freqReadout = node.el && node.el.querySelector('.speaker-frequency-readout');
+    const volReadout = node.el && node.el.querySelector('.speaker-volume-readout');
+    if (freqReadout) freqReadout.textContent = `${settings.frequency} Hz`;
+    if (volReadout) volReadout.textContent = `${settings.volume}%`;
+  }
+
+  function applySpeakerAudioSettings(node){
+    const settings = getSpeakerSettings(node);
+    updateSpeakerReadouts(node);
+    if (!node.oscillator) return;
+    const now = audioCtx.currentTime;
+    node.oscillator.type = settings.waveform;
+    node.oscillator.frequency.setTargetAtTime(settings.frequency, now, 0.04);
+    const targetGain = (settings.volume / 100) * 0.28;
+    node.gainNode.gain.cancelScheduledValues(now);
+    node.gainNode.gain.setTargetAtTime(targetGain, now, 0.05);
+  }
+
   function playTone(node, active) {
+    const settings = getSpeakerSettings(node);
+    const targetGain = (settings.volume / 100) * 0.28;
+    const fadeTime = 0.05;
+
     if (active) {
       if (!node.oscillator) {
         if (audioCtx.state === 'suspended') audioCtx.resume();
         node.oscillator = audioCtx.createOscillator();
         node.gainNode = audioCtx.createGain();
-        node.oscillator.type = 'square';
-        node.oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-        node.gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        node.oscillator.type = settings.waveform;
+        node.oscillator.frequency.setValueAtTime(settings.frequency, audioCtx.currentTime);
+        node.gainNode.gain.setValueAtTime(0.0001, audioCtx.currentTime);
         node.oscillator.connect(node.gainNode);
         node.gainNode.connect(audioCtx.destination);
         node.oscillator.start();
       }
+
+      clearTimeout(node.fadeStopTimeout);
+      node.fadeStopTimeout = null;
+      const now = audioCtx.currentTime;
+      node.oscillator.type = settings.waveform;
+      node.oscillator.frequency.setTargetAtTime(settings.frequency, now, 0.04);
+      node.gainNode.gain.cancelScheduledValues(now);
+      node.gainNode.gain.setTargetAtTime(targetGain, now, fadeTime);
     } else if (node.oscillator) {
-      node.oscillator.stop();
-      node.oscillator.disconnect();
-      node.oscillator = null;
-      node.gainNode = null;
+      clearTimeout(node.fadeStopTimeout);
+      const now = audioCtx.currentTime;
+      node.gainNode.gain.cancelScheduledValues(now);
+      node.gainNode.gain.setTargetAtTime(0.0001, now, fadeTime);
+      node.fadeStopTimeout = setTimeout(() => {
+        if (!node.oscillator) return;
+        node.oscillator.stop();
+        node.oscillator.disconnect();
+        node.oscillator = null;
+        node.gainNode.disconnect();
+        node.gainNode = null;
+      }, 120);
     }
   }
 
@@ -469,6 +535,8 @@
     if(isCustomChip(type)) return '<span class="node-chip-symbol">▣</span>';
     const glyphs = {
       INPUT: '<span class="node-chip-symbol">◎</span>',
+      POWER: '<span class="node-chip-symbol">⎈</span>',
+      GROUND: '<span class="node-chip-symbol">⏚</span>',
       BUTTON: '<span class="node-chip-symbol">●</span>',
       CLOCK: '<span class="node-chip-symbol">◷</span>',
       OSCLOCK: '<span class="node-chip-symbol">◷</span>',
@@ -479,6 +547,9 @@
       FOURTEEN: '<span class="node-chip-symbol">M</span>',
       AND: '<svg viewBox="0 0 24 16"><path d="M2 1 H12 A7 7 0 0 1 12 15 H2 Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
       OR: '<svg viewBox="0 0 24 16"><path d="M2 1 Q9 1 12 8 Q9 15 2 15 Q6 8 2 1 Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+      OR3: '<svg viewBox="0 0 24 16"><path d="M2 1 Q9 1 12 8 Q9 15 2 15 Q6 8 2 1 Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+      OR3IN: '<svg viewBox="0 0 24 16"><path d="M2 1 Q9 1 12 8 Q9 15 2 15 Q6 8 2 1 Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+      OR2OUT: '<svg viewBox="0 0 24 16"><path d="M2 1 Q9 1 12 8 Q9 15 2 15 Q6 8 2 1 Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
       NOT: '<svg viewBox="0 0 24 16"><path d="M2 1 L2 15 L14 8 Z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16.5" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
       NAND: '<svg viewBox="0 0 24 16"><path d="M2 1 H10 A7 7 0 0 1 10 15 H2 Z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="19" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
       NOR: '<svg viewBox="0 0 24 16"><path d="M2 1 Q8 1 10 8 Q8 15 2 15 Q5 8 2 1 Z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
@@ -536,6 +607,7 @@
       nInputs, period:1500, startTime:Date.now(),
       knobX: 0, knobY: 0, operation: '+', history: [], delayTicks: 1, buffer: [false],
       osTargetTime: null, osAlarmTriggered: false, osAlarmStopped: false, rotation: 0,
+      sourceValue: type === 'POWER',
       switches: isDipSwitchType(type) ? new Array(6).fill(false) : undefined
     };
 
@@ -557,6 +629,31 @@
       outPin.dataset.index = '0';
       outWrap.appendChild(outPin);
       body.appendChild(outWrap);
+    } else if(type === 'POWER' || type === 'GROUND'){
+      const sourceLabel = document.createElement('div');
+      sourceLabel.className = 'delay-config';
+      sourceLabel.textContent = node.sourceValue ? 'HIGH' : 'LOW';
+      sourceLabel.style.textAlign = 'center';
+      sourceLabel.style.fontWeight = '700';
+      sourceLabel.style.color = node.sourceValue ? '#ffdc73' : '#7ec7ff';
+      sourceLabel.title = 'Click to toggle between power and ground';
+      sourceLabel.addEventListener('click', () => {
+        node.sourceValue = !node.sourceValue;
+        node.value = !!node.sourceValue;
+        sourceLabel.textContent = node.sourceValue ? 'HIGH' : 'LOW';
+        sourceLabel.style.color = node.sourceValue ? '#ffdc73' : '#7ec7ff';
+      });
+      body.appendChild(sourceLabel);
+      const outWrap = document.createElement('div');
+      outWrap.className = 'pins out';
+      outPin = document.createElement('div');
+      outPin.className = 'pin out';
+      outPin.dataset.nodeId = id;
+      outPin.dataset.kind = 'out';
+      outPin.dataset.index = '0';
+      outWrap.appendChild(outPin);
+      body.appendChild(outWrap);
+      node.value = !!node.sourceValue;
     } else if(type === 'OUTPUT'){
       const inWrap = document.createElement('div');
       inWrap.className = 'pins in';
@@ -922,12 +1019,86 @@
       inPins.push(p);
       body.appendChild(inWrap);
 
-      const speakerIcon = document.createElement('div');
-      speakerIcon.className = 'speaker-icon';
-      speakerIcon.textContent = '🔊';
-      speakerIcon.style.margin = '0 auto';
-      speakerIcon.style.fontSize = '20px';
-      body.appendChild(speakerIcon);
+      const configWrap = document.createElement('div');
+      configWrap.className = 'speaker-config';
+      configWrap.innerHTML = `
+        <label class="speaker-setting">
+          <div class="speaker-setting-header">
+            <span>Hz</span>
+            <strong class="speaker-frequency-readout">880 Hz</strong>
+          </div>
+          <input class="speaker-frequency" data-node-id="${id}" type="range" min="80" max="4000" step="10" value="${DEFAULT_SPEAKER_SETTINGS.frequency}" />
+        </label>
+        <label class="speaker-setting">
+          <div class="speaker-setting-header">
+            <span>Vol</span>
+            <strong class="speaker-volume-readout">18%</strong>
+          </div>
+          <input class="speaker-volume" data-node-id="${id}" type="range" min="0" max="35" step="1" value="${DEFAULT_SPEAKER_SETTINGS.volume}" />
+        </label>
+        <label class="speaker-setting">
+          <span>Wave</span>
+          <select class="speaker-waveform" data-node-id="${id}">
+            <option value="sine">Sine</option>
+            <option value="triangle">Triangle</option>
+            <option value="square">Square</option>
+            <option value="sawtooth">Saw</option>
+          </select>
+        </label>
+      `;
+      body.appendChild(configWrap);
+
+      const frequencyInput = configWrap.querySelector('.speaker-frequency');
+      const volumeInput = configWrap.querySelector('.speaker-volume');
+      const waveformSelect = configWrap.querySelector('.speaker-waveform');
+      const settings = getSpeakerSettings(node);
+      frequencyInput.value = String(settings.frequency);
+      volumeInput.value = String(settings.volume);
+      waveformSelect.value = settings.waveform;
+      updateSpeakerReadouts(node);
+
+      frequencyInput.addEventListener('input', (e) => {
+        node.speakerSettings = { ...getSpeakerSettings(node), frequency: clampSpeakerFrequency(e.target.value) };
+        applySpeakerAudioSettings(node);
+        snapshot();
+      });
+      volumeInput.addEventListener('input', (e) => {
+        node.speakerSettings = { ...getSpeakerSettings(node), volume: clampSpeakerVolume(e.target.value) };
+        applySpeakerAudioSettings(node);
+        snapshot();
+      });
+      waveformSelect.addEventListener('change', (e) => {
+        node.speakerSettings = { ...getSpeakerSettings(node), waveform: e.target.value };
+        applySpeakerAudioSettings(node);
+        snapshot();
+      });
+    } else if(type === 'OR2OUT') {
+      const inWrap = document.createElement('div');
+      inWrap.className = 'pins in';
+      for(let i=0;i<2;i++){
+        const p = document.createElement('div');
+        p.className = 'pin in';
+        p.dataset.index = String(i);
+        p.dataset.nodeId = id;
+        p.dataset.kind = 'in';
+        inWrap.appendChild(p);
+        inPins.push(p);
+      }
+      body.appendChild(inWrap);
+
+      const outWrap = document.createElement('div');
+      outWrap.className = 'pins out';
+      for(let i=0;i<2;i++){
+        const p = document.createElement('div');
+        p.className = 'pin out';
+        p.dataset.index = String(i);
+        p.dataset.nodeId = id;
+        p.dataset.kind = 'out';
+        outWrap.appendChild(p);
+        outPins.push(p);
+        if(i === 0) outPin = p;
+      }
+      body.appendChild(outWrap);
     } else {
       const inWrap = document.createElement('div');
       inWrap.className = 'pins in';
@@ -953,6 +1124,10 @@
             <option value="5" ${currentTicks === 5 ? 'selected' : ''}>5 Ticks (~80ms)</option>
             <option value="10" ${currentTicks === 10 ? 'selected' : ''}>10 Ticks (~160ms)</option>
             <option value="15" ${currentTicks === 15 ? 'selected' : ''}>15 Ticks (~240ms)</option>
+            <option value="16" ${currentTicks === 16 ? 'selected' : ''}>16 Ticks (~256ms)</option>
+            <option value="17" ${currentTicks === 17 ? 'selected' : ''}>17 Ticks (~272ms)</option>
+            <option value="18" ${currentTicks === 18 ? 'selected' : ''}>18 Ticks (~288ms)</option>
+            <option value="19" ${currentTicks === 19 ? 'selected' : ''}>19 Ticks (~304ms)</option>
             <option value="20" ${currentTicks === 20 ? 'selected' : ''}>20 Ticks (~320ms)</option>
             <option value="40" ${currentTicks === 40 ? 'selected' : ''}>40 Ticks (~640ms)</option>
             <option value="60" ${currentTicks === 60 ? 'selected' : ''}>60 Ticks (~1 Sec)</option>
@@ -1061,6 +1236,7 @@
     duplicate.osTargetTime = source.osTargetTime;
     duplicate.osAlarmTriggered = source.osAlarmTriggered;
     duplicate.osAlarmStopped = source.osAlarmStopped;
+    duplicate.speakerSettings = source.speakerSettings ? { ...source.speakerSettings } : { ...DEFAULT_SPEAKER_SETTINGS };
 
     const inputToggle = duplicate.el.querySelector('.toggle');
     if(inputToggle) inputToggle.classList.toggle('on', duplicate.value);
@@ -1068,6 +1244,12 @@
     if(clockSelect) clockSelect.value = duplicate.period;
     const delaySelect = duplicate.el.querySelector('.delay-select');
     if(delaySelect) delaySelect.value = duplicate.delayTicks;
+    const frequencyInput = duplicate.el.querySelector('.speaker-frequency');
+    if(frequencyInput) frequencyInput.value = String(getSpeakerSettings(duplicate).frequency);
+    const volumeInput = duplicate.el.querySelector('.speaker-volume');
+    if(volumeInput) volumeInput.value = String(getSpeakerSettings(duplicate).volume);
+    const waveformSelect = duplicate.el.querySelector('.speaker-waveform');
+    if(waveformSelect) waveformSelect.value = getSpeakerSettings(duplicate).waveform;
     const alarmInput = duplicate.el.querySelector('.osclock-input');
     if(alarmInput && duplicate.osTargetTime) {
       const date = new Date(duplicate.osTargetTime);
@@ -1569,6 +1751,13 @@
         let out = false;
         if(inner.type === 'AND') out = vals[0] && vals[1];
         else if(inner.type === 'OR') out = vals[0] || vals[1];
+        else if(inner.type === 'OR3' || inner.type === 'OR3IN') out = vals[0] || vals[1] || vals[2];
+        else if(inner.type === 'OR2OUT') {
+          const combined = vals[0] || vals[1];
+          values.set(`${inner.id}:0`, combined);
+          values.set(`${inner.id}:1`, combined);
+          out = combined;
+        }
         else if(inner.type === 'NAND') out = !(vals[0] && vals[1]);
         else if(inner.type === 'NOR') out = !(vals[0] || vals[1]);
         else if(inner.type === 'XOR') out = !!vals[0] !== !!vals[1];
@@ -1612,6 +1801,10 @@
 
   function simulate(){
     nodes.forEach(node=>{
+      if(node.type === 'POWER' || node.type === 'GROUND') {
+        node.value = !!node.sourceValue;
+        return;
+      }
       if(node.type === 'INPUT' || node.type === 'BUTTON') return;
       if(node.type === 'CLOCK'){
         node.value = Math.floor((Date.now()-node.startTime)/node.period) % 2 === 0;
@@ -1688,6 +1881,13 @@
       switch(node.type){
         case 'AND':  out = vals[0] && vals[1]; break;
         case 'OR':   out = vals[0] || vals[1]; break;
+        case 'OR3':
+        case 'OR3IN': out = vals[0] || vals[1] || vals[2]; break;
+        case 'OR2OUT': {
+          out = vals[0] || vals[1];
+          node.outValues = [out, out];
+          break;
+        }
         case 'NAND': out = !(vals[0] && vals[1]); break;
         case 'NOR':  out = !(vals[0] || vals[1]); break;
         case 'XOR':  out = !!vals[0] !== !!vals[1]; break;
@@ -1748,6 +1948,8 @@
           } else if(node.type === chipKey('Switch Assembly')) {
             val = !!(node.outValues && node.outValues[idx]);
           } else if (isCustomChip(node.type)) {
+            val = !!(node.outValues && node.outValues[idx]);
+          } else if (node.type === 'OR2OUT') {
             val = !!(node.outValues && node.outValues[idx]);
           } else {
             const keys = ['up', 'down', 'left', 'right'];
@@ -1827,7 +2029,7 @@
       if(from.type === 'JOYSTICK' && from.outValues) {
         const keys = ['up', 'down', 'left', 'right'];
         isHot = !!from.outValues[keys[fromIndex]];
-      } else if((isCustomChip(from.type) || isDipSwitchType(from.type)) && from.outValues) {
+      } else if((isCustomChip(from.type) || isDipSwitchType(from.type) || from.type === 'OR2OUT') && from.outValues) {
         isHot = !!from.outValues[fromIndex];
       }
       w.elVis.classList.toggle('hot', isHot);
@@ -1887,6 +2089,7 @@
         switches: isDipSwitchType(n.type) ? (n.switches || new Array(6).fill(false)) : undefined,
         period: n.type === 'CLOCK' ? n.period : undefined,
         delayTicks: n.type === 'DELAY' ? n.delayTicks : undefined,
+        speakerSettings: n.type === 'SPEAKER' ? getSpeakerSettings(n) : undefined,
         osTargetTime: n.type === 'OSCLOCK' ? n.osTargetTime : undefined,
         osAlarmTriggered: n.type === 'OSCLOCK' ? n.osAlarmTriggered : undefined,
         osAlarmStopped: n.type === 'OSCLOCK' ? n.osAlarmStopped : undefined
@@ -1969,6 +2172,15 @@
         const selectEl = n.el.querySelector('.delay-select');
         if(selectEl) selectEl.value = saved.delayTicks;
       }
+      if(saved.type === 'SPEAKER' && saved.speakerSettings) {
+        n.speakerSettings = { ...DEFAULT_SPEAKER_SETTINGS, ...saved.speakerSettings };
+        const frequencyInput = n.el.querySelector('.speaker-frequency');
+        const volumeInput = n.el.querySelector('.speaker-volume');
+        const waveformSelect = n.el.querySelector('.speaker-waveform');
+        if(frequencyInput) frequencyInput.value = String(getSpeakerSettings(n).frequency);
+        if(volumeInput) volumeInput.value = String(getSpeakerSettings(n).volume);
+        if(waveformSelect) waveformSelect.value = getSpeakerSettings(n).waveform;
+      }
       if(saved.type === 'OSCLOCK' && saved.osTargetTime){
         n.osTargetTime = saved.osTargetTime;
         n.osAlarmTriggered = !!saved.osAlarmTriggered;
@@ -2043,6 +2255,7 @@
           value: n.type === 'INPUT' ? !!n.value : undefined,
           period: n.type === 'CLOCK' ? n.period : undefined,
           delayTicks: n.type === 'DELAY' ? n.delayTicks : undefined,
+          speakerSettings: n.type === 'SPEAKER' ? { ...getSpeakerSettings(n) } : undefined,
           osTargetTime: n.type === 'OSCLOCK' ? n.osTargetTime : undefined,
           osAlarmTriggered: n.type === 'OSCLOCK' ? n.osAlarmTriggered : undefined,
           osAlarmStopped: n.type === 'OSCLOCK' ? n.osAlarmStopped : undefined };
@@ -2128,6 +2341,185 @@
     createWire(n2.id, qn.id, 0);
     snapshot();
     toast('SR latch loaded');
+  });
+
+  document.getElementById('loadDLatch').addEventListener('click', ()=>{
+    clearBoard();
+    const d  = createNode('INPUT', 50, 120);
+    const en = createNode('INPUT', 50, 300);
+    const nd = createNode('NOT', 250, 120);
+    const setAnd = createNode('AND', 420, 80);
+    const resAnd = createNode('AND', 420, 220);
+    const qNor = createNode('NOR', 620, 80);
+    const qnNor = createNode('NOR', 620, 220);
+    const q = createNode('OUTPUT', 850, 80);
+    const qn = createNode('OUTPUT', 850, 220);
+
+    createWire(d.id, nd.id, 0);
+    createWire(d.id, setAnd.id, 0);
+    createWire(en.id, setAnd.id, 1);
+    createWire(nd.id, resAnd.id, 0);
+    createWire(en.id, resAnd.id, 1);
+
+    createWire(setAnd.id, qNor.id, 0);
+    createWire(qnNor.id, qNor.id, 1);
+    createWire(resAnd.id, qnNor.id, 0);
+    createWire(qNor.id, qnNor.id, 1);
+
+    createWire(qNor.id, q.id, 0);
+    createWire(qnNor.id, qn.id, 0);
+
+    snapshot();
+    toast('D latch loaded');
+  });
+
+  function loadMarioTheme(){
+    clearBoard();
+
+    const trigger = createNode('INPUT', 80, 220);
+    const speaker = createNode('SPEAKER', 340, 220);
+    // Accurate transcription of the Super Mario Bros. (NES) Ground Theme, extended to
+    // the full loop: main phrase (A), bridge section (B), then main phrase again (A).
+    // freq 0 = rest. Durations in ms (100 = eighth note, 133 = dotted eighth, at ~200bpm).
+    const mainPhrase = [
+      [659,100],[659,100],[0,100],[659,100],
+      [0,100],[523,100],[659,100],[0,100],
+      [784,100],[0,100],[0,100],[0,100],
+      [392,100],[0,100],[0,100],[0,100],
+
+      [523,100],[0,100],[0,100],[392,100],
+      [0,100],[0,100],[330,100],[0,100],
+      [0,100],[440,100],[0,100],[494,100],
+      [0,100],[466,100],[440,100],[0,100],
+
+      [392,133],[659,133],[784,133],
+      [880,100],[0,100],[698,100],[784,100],
+      [0,100],[659,100],[0,100],[523,100],
+      [587,100],[494,100],[0,100],[0,100],
+
+      [523,100],[0,100],[0,100],[392,100],
+      [0,100],[0,100],[330,100],[0,100],
+      [0,100],[440,100],[0,100],[494,100],
+      [0,100],[466,100],[440,100],[0,100],
+
+      [392,133],[659,133],[784,133],
+      [880,100],[0,100],[698,100],[784,100],
+      [0,100],[659,100],[0,100],[523,100],
+      [587,100],[494,100],[0,100],[0,100]
+    ];
+
+    const bridge = [
+      [523,100],[523,100],[523,100],
+      [0,100],
+      [523,100],[587,100],[659,100],
+      [523,100],[440,100],[392,100],
+      [0,100],
+      [0,100],
+
+      [523,100],[523,100],[523,100],
+      [0,100],
+      [523,100],[587,100],[659,100],
+      [0,100],
+      [0,100],
+      [0,100],
+
+      [523,100],[523,100],[523,100],
+      [0,100],
+      [523,100],[587,100],[659,100],
+      [523,100],[440,100],[392,100],
+      [0,100],
+      [0,100],
+
+      [330,100],[330,100],[262,100],
+      [0,100],
+      [0,100],
+      [392,100],[0,100],
+      [0,100],
+      [0,100]
+    ];
+
+    const marioNotes = [...mainPhrase, ...bridge, ...mainPhrase];
+
+    let stepIndex = 0;
+    let timer = null;
+
+    function playMarioStep(){
+      if (stepIndex >= marioNotes.length) {
+        trigger.value = false;
+        speaker.value = false;
+        playTone(speaker, false);
+        snapshot();
+        return;
+      }
+      const [freq, duration] = marioNotes[stepIndex];
+
+      if (freq > 0) {
+        speaker.speakerSettings = { ...getSpeakerSettings(speaker), frequency: freq, volume: 20, waveform: 'square' };
+        trigger.value = true;
+        speaker.value = true;
+        playTone(speaker, true);
+        updateSpeakerReadouts(speaker);
+        timer = setTimeout(() => {
+          speaker.value = false;
+          trigger.value = false;
+          playTone(speaker, false);
+          stepIndex += 1;
+          timer = setTimeout(playMarioStep, duration * 0.1);
+        }, duration * 0.9);
+      } else {
+        trigger.value = false;
+        speaker.value = false;
+        playTone(speaker, false);
+        timer = setTimeout(() => {
+          stepIndex += 1;
+          playMarioStep();
+        }, duration);
+      }
+    }
+
+    clearTimeout(timer);
+    stepIndex = 0;
+    createWire(trigger.id, speaker.id, 0);
+    playMarioStep();
+
+    snapshot();
+    toast('Mario Ground Theme activated');
+  }
+
+  const marioSequence = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'Enter'];
+  let marioKeyBuffer = [];
+  let marioKeyTimer = null;
+
+  function resetMarioSequence(){
+    marioKeyBuffer = [];
+    clearTimeout(marioKeyTimer);
+    marioKeyTimer = null;
+  }
+
+  document.addEventListener('keydown', (event) => {
+    const key = event.key || event.code || '';
+    const normalized = key === 'Up' ? 'ArrowUp' : key === 'Down' ? 'ArrowDown' : key === 'Left' ? 'ArrowLeft' : key === 'Right' ? 'ArrowRight' : key;
+    const validKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter']);
+    const isArrowOrEnter = validKeys.has(normalized);
+
+    if (isArrowOrEnter) {
+      event.preventDefault();
+      clearTimeout(marioKeyTimer);
+      marioKeyTimer = setTimeout(resetMarioSequence, 1800);
+    }
+
+    if (!isArrowOrEnter) return;
+
+    if (normalized === marioSequence[marioKeyBuffer.length]) {
+      marioKeyBuffer.push(normalized);
+    } else {
+      marioKeyBuffer = normalized === marioSequence[0] ? [normalized] : [];
+    }
+
+    if (marioKeyBuffer.length === marioSequence.length) {
+      loadMarioTheme();
+      resetMarioSequence();
+    }
   });
 
   snapshot();

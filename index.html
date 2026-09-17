@@ -21,6 +21,7 @@
     <div class="hdr-actions">
       <button class="btn ghost" id="loadHalfAdder">Load: Half Adder</button>
       <button class="btn ghost" id="loadLatch">Load: SR Latch</button>
+      <button class="btn ghost" id="loadDLatch">Load: D Latch</button>
       <div class="divider-v"></div>
       <button class="btn ghost" id="saveBoard" title="Save board to a file">Save</button>
       <button class="btn ghost" id="saveChip" title="Package the current circuit as a chip">Save Chip</button>
@@ -40,6 +41,8 @@
     <aside class="palette">
       <h2>INPUTS</h2>
       <button class="part" data-type="INPUT"><span class="glyph">◎</span>Switch</button>
+      <button class="part" data-type="POWER"><span class="glyph">⎈</span>Power</button>
+      <button class="part" data-type="GROUND"><span class="glyph">⏚</span>Ground</button>
       <button class="part" data-type="DIPSWITCH" id="newSwitchAssembly"><span class="glyph">▣</span>Dip Switch</button>
       <button class="part" data-type="BUTTON"><span class="glyph">●</span>Button</button>
       <button class="part" data-type="OSCLOCK"><span class="glyph">◷</span>OS Clock</button>
@@ -60,6 +63,12 @@
       </button>
       <button class="part" data-type="OR">
         <span class="glyph"><svg viewBox="0 0 24 16"><path d="M2 1 Q9 1 12 8 Q9 15 2 15 Q6 8 2 1 Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span>OR
+      </button>
+      <button class="part" data-type="OR3IN">
+        <span class="glyph"><svg viewBox="0 0 24 16"><path d="M2 1 Q9 1 12 8 Q9 15 2 15 Q6 8 2 1 Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span>OR 3 IN
+      </button>
+      <button class="part" data-type="OR2OUT">
+        <span class="glyph"><svg viewBox="0 0 24 16"><path d="M2 1 Q9 1 12 8 Q9 15 2 15 Q6 8 2 1 Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span>OR 2 OUT
       </button>
       <button class="part" data-type="NOT">
         <span class="glyph"><svg viewBox="0 0 24 16"><path d="M2 1 L2 15 L14 8 Z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16.5" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span>NOT
