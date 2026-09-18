@@ -94,6 +94,7 @@
 
   let nodes = new Map();     
   let wires = [];            
+  let connectedPins = new Set();
   const inputWires = new Map();
   let nodeSeq = 0, wireSeq = 0;
   let pendingWireFrom = null; 
@@ -2259,6 +2260,7 @@
   function renderWires(){
     const branchCounts = new Map();
     const renderedJunctions = new Set();
+    const newConnected = new Set();
     wires.forEach(w => {
       const key = `${w.from}:${w.fromIndex || 0}`;
       branchCounts.set(key, (branchCounts.get(key) || 0) + 1);
@@ -2275,10 +2277,13 @@
       if(!fromPin && from.outPins && from.outPins.length > 0) {
         fromPin = from.outPins[0];
       }
-      if(!fromPin || !to.inPins[w.toIndex]) return;
+      const toPin = to.inPins[w.toIndex];
+      if(!fromPin || !toPin) return;
+      newConnected.add(fromPin);
+      newConnected.add(toPin);
 
       const a = pinCenter(fromPin);
-      const b = pinCenter(to.inPins[w.toIndex]);
+      const b = pinCenter(toPin);
       const routeKey = `${routingRevision}:${a.x.toFixed(1)}:${a.y.toFixed(1)}:${b.x.toFixed(1)}:${b.y.toFixed(1)}`;
       if(w.routeKey !== routeKey) {
         w.routeKey = routeKey;
@@ -2306,6 +2311,10 @@
       w.elVis.classList.toggle('hot', isHot);
       w.elJunction.classList.toggle('hot', isHot);
     });
+
+    connectedPins.forEach(pin => { if(!newConnected.has(pin)) pin.classList.remove('connected'); });
+    newConnected.forEach(pin => pin.classList.add('connected'));
+    connectedPins = newConnected;
   }
 
   function loop(){
